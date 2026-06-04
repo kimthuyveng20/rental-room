@@ -32,22 +32,12 @@ import { Plus, Trash2, Loader2, AlertCircle, Building2, Users } from 'lucide-rea
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useTranslations } from 'next-intl';
 
-const roomSchema = z.object({
-  propertyId: z.string().min(1, 'Please select a parent property asset'),
-  roomNumber: z.string().min(1, 'Room/Suite allocation identifier is required'),
-  type: z.string().min(1, 'Room configuration layout type is required'),
-  capacity: z.coerce.number().min(1, 'Max target occupancy limit must be at least 1'),
-  pricePerMonth: z.coerce.number().min(1, 'Base standard pricing premium rate must be greater than 0'),
-  status: z.enum(['available', 'occupied', 'maintenance']),
-});
-
-type RoomFormData = z.infer<typeof roomSchema>;
- 
 interface DBRoom {
   id: number;
   roomNumber: string;
-  type: 'single' | 'double' |'suite',
+  type: 'single' | 'double' | 'suite';
   capacity: number;
   pricePerMonth: string | number;
   status: 'available' | 'occupied' | 'maintenance';
@@ -65,11 +55,24 @@ interface DBPropertyOption {
 }
 
 export default function RoomsPage() {
+  const t = useTranslations("Room");
   const [rooms, setRooms] = useState<DBRoom[]>([]);
   const [properties, setProperties] = useState<DBPropertyOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Zod Client-Side Error Schema strings resolved dynamically via i18n hooks
+  const roomSchema = z.object({
+    propertyId: z.string().min(1, t('validation.propertyId')),
+    roomNumber: z.string().min(1, t('validation.roomNumber')),
+    type: z.string().min(1, t('validation.type')),
+    capacity: z.coerce.number().min(1, t('validation.capacity')),
+    pricePerMonth: z.coerce.number().min(1, t('validation.price')),
+    status: z.enum(['available', 'occupied', 'maintenance']),
+  });
+
+  type RoomFormData = z.infer<typeof roomSchema>;
 
   const form = useForm<RoomFormData>({
     resolver: zodResolver(roomSchema),
@@ -86,13 +89,13 @@ export default function RoomsPage() {
   const syncDataStream = async () => {
     try {
       const res = await fetch('/api/rooms');
-      if (!res.ok) throw new Error('Data matrix processing execution faults');
+      if (!res.ok) throw new Error();
       const data = await res.json();
       setRooms(data.rooms || []);
       setProperties(data.properties || []);
     } catch (err) {
       console.error(err);
-      setErrorMessage('Could not synchronize live inventory metrics layout schemas.');
+      setErrorMessage(t('errFetch'));
     } finally {
       setLoading(false);
     }
@@ -108,7 +111,7 @@ export default function RoomsPage() {
       const response = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, amenities: [] }), // Default schema array placeholder
+        body: JSON.stringify({ ...data, amenities: [] }),
       });
 
       if (!response.ok) {
@@ -138,7 +141,7 @@ export default function RoomsPage() {
       <DashboardLayout userRole="owner">
         <div className="flex h-[50vh] flex-col items-center justify-center gap-2">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground text-sm">Validating structure properties schema values...</p>
+          <p className="text-muted-foreground text-sm">{t('syncing')}</p>
         </div>
       </DashboardLayout>
     );
@@ -148,20 +151,20 @@ export default function RoomsPage() {
     <DashboardLayout userRole="owner">
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Rooms</h1>
-            <p className="text-muted-foreground mt-1">Manage infrastructure, capacities, and yield tables</p>
+          <div >
+            <h1 className="text-3xl font-bold py-2">{t('title')}</h1>
+            <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
           </div>
           
           <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) setErrorMessage(null); }}>
             <DialogTrigger asChild>
               <Button className="gap-2">
-                <Plus className="w-4 h-4" /> Add Room
+                <Plus className="w-4 h-4" /> {t('addRoom')}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Register Real Asset Unit</DialogTitle>
+                <DialogTitle>{t('registerAsset')}</DialogTitle>
               </DialogHeader>
 
               {errorMessage && (
@@ -178,11 +181,11 @@ export default function RoomsPage() {
                     name="propertyId"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Parent Complex Assignment</FormLabel>
+                        <FormLabel>{t('parentComplex')}</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Select active real estate development" />
+                              <SelectValue placeholder={t('selectEstate')} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
@@ -203,7 +206,7 @@ export default function RoomsPage() {
                     name="roomNumber"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Room Identifier Code</FormLabel>
+                        <FormLabel>{t('roomIdentifier')}</FormLabel>
                         <FormControl>
                           <Input placeholder="e.g. Suite 101, Apt 4B" {...field} />
                         </FormControl>
@@ -217,18 +220,17 @@ export default function RoomsPage() {
                     name="type"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Room Type (Matches Database Enum)</FormLabel>
+                        <FormLabel>{t('roomTypeLabel')}</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Select asset configuration" />
+                              <SelectValue placeholder={t('selectConfig')} />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {/* Make sure these match the literal strings inside your backend roomTypeEnum exactly */}
-                            <SelectItem value="single">Single</SelectItem>
-                            <SelectItem value="double">Double</SelectItem>
-                            <SelectItem value="suite">Suite</SelectItem>
+                            <SelectItem value="single">{t('single')}</SelectItem>
+                            <SelectItem value="double">{t('double')}</SelectItem>
+                            <SelectItem value="suite">{t('suite')}</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -242,7 +244,7 @@ export default function RoomsPage() {
                       name="capacity"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Max Headcount Capacity</FormLabel>
+                          <FormLabel>{t('maxHeadcount')}</FormLabel>
                           <FormControl>
                             <Input type="number" min="1" {...field} />
                           </FormControl>
@@ -256,7 +258,7 @@ export default function RoomsPage() {
                       name="pricePerMonth"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Price Per Month ($)</FormLabel>
+                          <FormLabel>{t('pricePerMonth') + " ($)"}</FormLabel>
                           <FormControl>
                             <Input type="number" step="0.01" placeholder="1250.00" {...field} />
                           </FormControl>
@@ -271,7 +273,7 @@ export default function RoomsPage() {
                     name="status"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Current Operation Status</FormLabel>
+                        <FormLabel>{t('currentStatus')}</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
@@ -279,9 +281,9 @@ export default function RoomsPage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="available">Available / Clean</SelectItem>
-                            <SelectItem value="occupied">Occupied</SelectItem>
-                            <SelectItem value="maintenance">Maintenance Log</SelectItem>
+                            <SelectItem value="available">{t('available')}</SelectItem>
+                            <SelectItem value="occupied">{t('occupied')}</SelectItem>
+                            <SelectItem value="maintenance">{t('maintenance')}</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -290,7 +292,7 @@ export default function RoomsPage() {
                   />
 
                   <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                    {form.formState.isSubmitting ? 'Writing System Blocks...' : 'Save Unit Structure Log'}
+                    {form.formState.isSubmitting ? t('saving') : t('saveLog')}
                   </Button>
                 </form>
               </Form>
@@ -305,20 +307,20 @@ export default function RoomsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-muted-foreground font-medium text-xs uppercase tracking-wider">
-                    <th className="text-left py-3 px-4 font-semibold">Location Allocation</th>
-                    <th className="text-left py-3 px-4 font-semibold">Unit Type</th>
-                    <th className="text-left py-3 px-4 font-semibold">Max Capacity</th>
-                    <th className="text-left py-3 px-4 font-semibold">Price / Month</th>
-                    <th className="text-left py-3 px-4 font-semibold">Active Occupant Base</th>
-                    <th className="text-left py-3 px-4 font-semibold">State</th>
-                    <th className="text-left py-3 px-4 font-semibold text-center">Actions</th>
+                    <th className="text-left py-3 px-4 font-semibold">{t('thLocation')}</th>
+                    <th className="text-left py-3 px-4 font-semibold">{t('thType')}</th>
+                    <th className="text-left py-3 px-4 font-semibold">{t('thCapacity')}</th>
+                    <th className="text-left py-3 px-4 font-semibold">{t('thPrice')}</th>
+                    <th className="text-left py-3 px-4 font-semibold">{t('thOccupant')}</th>
+                    <th className="text-left py-3 px-4 font-semibold">{t('thState')}</th>
+                    <th className="text-left py-3 px-4 font-semibold text-center">{t('thActions')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rooms.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="text-center py-8 text-muted-foreground">
-                        No active managed rooms records found in the system registry layout.
+                        {t('noRooms')}
                       </td>
                     </tr>
                   ) : (
@@ -332,11 +334,13 @@ export default function RoomsPage() {
                             <div className="flex flex-col">
                               <span>#{room.roomNumber}</span>
                               <span className="text-xs text-muted-foreground flex items-center gap-1 font-normal">
-                                <Building2 className="w-3 h-3" /> {room.property?.name || 'Unassigned Asset'}
+                                <Building2 className="w-3 h-3" /> {room.property?.name || t('unassignedAsset')}
                               </span>
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-foreground capitalize">{room.type}</td>
+                          <td className="py-3 px-4 text-foreground capitalize">
+                            {t(room.type) || room.type}
+                          </td>
                           <td className="py-3 px-4">
                             <span className="flex items-center gap-1 font-mono text-xs text-foreground">
                               <Users className="w-3 h-3 text-muted-foreground" /> Max {room.capacity}
@@ -349,12 +353,12 @@ export default function RoomsPage() {
                             {occupantIdentityString ? (
                               <span className="text-primary font-semibold">{occupantIdentityString}</span>
                             ) : (
-                              <span className="text-muted-foreground font-mono italic text-xs">Vacant Registry</span>
+                              <span className="text-muted-foreground font-mono italic text-xs">{t('vacantRegistry')}</span>
                             )}
                           </td>
                           <td className="py-3 px-4">
                             <Badge className={`${getStatusColor(room.status)} shadow-none border-none capitalize`}>
-                              {room.status}
+                              {t(room.status) || room.status}
                             </Badge>
                           </td>
                           <td className="py-3 px-4 text-center">

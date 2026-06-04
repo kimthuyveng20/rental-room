@@ -34,6 +34,8 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
+import { getTranslations } from 'next-intl/server';
+import { useTranslations } from 'next-intl';
 
 const leaseSchema = z.object({
   roomId: z.string().min(1, 'Room selection is required'),
@@ -132,246 +134,251 @@ export default function LeasesPage() {
     return days;
   };
 
-  if (loading) {
-    return (
-      <DashboardLayout userRole="owner">
-        <div className="flex h-[50vh] flex-col items-center justify-center gap-2">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground text-sm">Synchronizing live rental registries...</p>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
+ const t = useTranslations("Leases");
+ 
+if (loading) {
   return (
     <DashboardLayout userRole="owner">
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Leases</h1>
-            <p className="text-muted-foreground mt-1">Manage rental agreements and leases</p>
-          </div>
-          
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="w-4 h-4" /> New Lease
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Create New Lease</DialogTitle>
-              </DialogHeader>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                  
-                  {/* Dynamic Selection Row */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="roomId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Assign Vacant Room</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select available room" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {rooms.map((room) => (
-                                <SelectItem key={room.id} value={room.id.toString()}>
-                                  Room {room.roomNumber}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+      <div className="flex h-[50vh] flex-col items-center justify-center gap-2">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground text-sm">{t("syncing")}</p>
+      </div>
+    </DashboardLayout>
+  );
+}
 
-                    <FormField
-                      control={form.control}
-                      name="tenantId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Assign Tenant Profile</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select tenant" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {tenants.map((t) => (
-                                <SelectItem key={t.id} value={t.id.toString()}>
-                                  {t.user.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {/* Dates Row */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="startDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Start Date</FormLabel>
+return (
+  <DashboardLayout userRole="owner">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold py-2">{t("title")}</h1>
+          <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
+        </div>
+        
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2">
+              <Plus className="w-4 h-4" /> {t("newLease")}
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>{t("createTitle")}</DialogTitle>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                
+                {/* Dynamic Selection Row */}
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="roomId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("roomLabel")}</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <Input type="date" {...field} />
+                            <SelectTrigger>
+                              <SelectValue placeholder={t("roomPlaceholder")} />
+                            </SelectTrigger>
                           </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="endDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>End Date</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {/* Financial Metrics Row */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="rentAmount"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Monthly Rent ($)</FormLabel>
-                          <FormControl>
-                            <Input type="number" placeholder="1200" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="depositAmount"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Security Deposit ($)</FormLabel>
-                          <FormControl>
-                            <Input type="number" placeholder="2400" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                          <SelectContent>
+                            {rooms.map((room) => (
+                              <SelectItem key={room.id} value={room.id.toString()}>
+                                Room {room.roomNumber}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   <FormField
                     control={form.control}
-                    name="notes"
+                    name="tenantId"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Notes</FormLabel>
+                        <FormLabel>{t("tenantLabel")}</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder={t("tenantPlaceholder")} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {tenants.map((tProfile) => (
+                              <SelectItem key={tProfile.id} value={tProfile.id.toString()}>
+                                {tProfile.user.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Dates Row */}
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="startDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("startDate")}</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Additional lease terms or notes..." {...field} />
+                          <Input type="date" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
 
-                  <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                    {form.formState.isSubmitting ? 'Writing to Ledger...' : 'Create & Authenticate Lease'}
-                  </Button>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        </div>
+                  <FormField
+                    control={form.control}
+                    name="endDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("endDate")}</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-        {/* Leases List Rendering Section */}
-        <div className="space-y-4">
-          {leases.length === 0 ? (
-            <div className="text-center py-12 border rounded-lg bg-background">
-              <FileText className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="text-muted-foreground">No active rental agreements found.</p>
-            </div>
-          ) : (
-            leases.map((lease) => {
-              const daysRemaining = getDaysRemaining(lease.endDate);
-              const isExpiringSoon = lease.status === 'active' && daysRemaining > 0 && daysRemaining < 30;
+                {/* Financial Metrics Row */}
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="rentAmount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("monthlyRent") + " ($)"}</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder={t("rentPlaceholder")} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              return (
-                <Card key={lease.id} className="hover:shadow-md transition-shadow">
-                  <CardContent className="pt-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <div className="p-3 rounded-lg bg-muted">
-                            <FileText className="w-6 h-6 text-muted-foreground" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold">
-                              {lease.tenant?.user?.name || "Unknown Tenant"}
-                              <span className="text-muted-foreground text-sm ml-2">
-                                • Room {lease.room?.roomNumber || "N/A"}
-                              </span>
-                            </h3>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                              <div className="flex items-center gap-1">
-                                <Calendar className="w-4 h-4" />
-                                {format(new Date(lease.startDate), 'MMM dd, yyyy')} -{' '}
-                                {format(new Date(lease.endDate), 'MMM dd, yyyy')}
-                              </div>
+                  <FormField
+                    control={form.control}
+                    name="depositAmount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("depositLabel")}</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder={t("depositPlaceholder")} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("notesLabel")}</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder={t("notesPlaceholder")} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                  {form.formState.isSubmitting ? t("writingLedger") : t("createAuthenticate")}
+                </Button>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Leases List Rendering Section */}
+      <div className="space-y-4">
+        {leases.length === 0 ? (
+          <div className="text-center py-12 border rounded-lg bg-background">
+            <FileText className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
+            <p className="text-muted-foreground">{t("noLeases")}</p>
+          </div>
+        ) : (
+          leases.map((lease) => {
+            const daysRemaining = getDaysRemaining(lease.endDate);
+            const isExpiringSoon = lease.status === 'active' && daysRemaining > 0 && daysRemaining < 30;
+            
+            // Resolve dynamic string or key fallback for status badge formatting
+            const statusKey = isExpiringSoon ? 'expiringSoon' : lease.status;
+
+            return (
+              <Card key={lease.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="pt-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <div className="p-3 rounded-lg bg-muted">
+                          <FileText className="w-6 h-6 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold">
+                            {lease.tenant?.user?.name || t("unknownTenant")}
+                            <span className="text-muted-foreground text-sm ml-2">
+                              • Room {lease.room?.roomNumber || "N/A"}
+                            </span>
+                          </h3>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="w-4 h-4" />
+                              {format(new Date(lease.startDate), 'MMM dd, yyyy')} -{' '}
+                              {format(new Date(lease.endDate), 'MMM dd, yyyy')}
                             </div>
                           </div>
                         </div>
                       </div>
+                    </div>
 
-                      <div className="flex items-center gap-6 ml-4">
-                        <div className="text-right">
-                          <p className="font-semibold">${Number(lease.monthlyRent).toFixed(2)}</p>
-                          <p className="text-xs text-muted-foreground">Monthly Rent</p>
-                        </div>
+                    <div className="flex items-center gap-6 ml-4">
+                      <div className="text-right">
+                        <p className="font-semibold">${Number(lease.monthlyRent).toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">{t("monthlyRent")}</p>
+                      </div>
 
-                        <div className="text-right min-w-[100px]">
-                          {lease.status === 'active' && daysRemaining > 0 ? (
-                            <p className="text-sm font-medium text-green-600 mb-1">
-                              {daysRemaining} days left
-                            </p>
-                          ) : (
-                            <p className="text-sm font-medium text-destructive mb-1">
-                              Agreement Finished
-                            </p>
-                          )}
-                          <Badge className={getStatusColor(isExpiringSoon ? 'expiring-soon' : lease.status)}>
-                            {isExpiringSoon ? 'Expiring Soon' : lease.status}
-                          </Badge>
-                        </div>
+                      <div className="text-right min-w-[100px]">
+                        {lease.status === 'active' && daysRemaining > 0 ? (
+                          <p className="text-sm font-medium text-green-600 mb-1">
+                            {daysRemaining} {t("daysLeft")}
+                          </p>
+                        ) : (
+                          <p className="text-sm font-medium text-destructive mb-1">
+                            {t("agreementFinished")}
+                          </p>
+                        )}
+                        <Badge className={getStatusColor(isExpiringSoon ? 'expiring-soon' : lease.status)}>
+                          {t(statusKey) || lease.status}
+                        </Badge>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
-        </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
       </div>
-    </DashboardLayout>
-  );
+    </div>
+  </DashboardLayout>
+)
 }

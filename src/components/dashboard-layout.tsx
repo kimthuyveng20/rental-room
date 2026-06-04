@@ -15,6 +15,8 @@ import {
   Receipt,
 } from 'lucide-react';
 import { Button } from '@/src/components/ui/button';
+import { useTranslations, useLocale } from 'next-intl'; // Import useLocale
+import { LanguageSwitcher } from './language-switcher';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -23,49 +25,49 @@ interface DashboardLayoutProps {
 
 const navigationItems = [
   {
-    label: 'Dashboard',
+    labelKey: 'dashboard', // Changed to mapping key
     href: '/dashboard',
     icon: Building,
     roles: ['owner', 'admin', 'tenant'],
   },
   {
-    label: 'Properties',
+    labelKey: 'properties',
     href: '/dashboard/properties',
     icon: Building,
     roles: ['owner', 'admin'],
   },
   {
-    label: 'Rooms',
+    labelKey: 'rooms',
     href: '/dashboard/rooms',
     icon: DoorOpen,
     roles: ['owner', 'admin'],
   },
   {
-    label: 'Tenants',
+    labelKey: 'tenants',
     href: '/dashboard/tenants',
     icon: Users,
     roles: ['owner', 'admin'],
   },
   {
-    label: 'Leases',
+    labelKey: 'leases',
     href: '/dashboard/leases',
     icon: FileText,
     roles: ['owner', 'admin', 'tenant'],
   },
   {
-    label: 'Payments',
+    labelKey: 'payments',
     href: '/dashboard/payments',
     icon: DollarSign,
     roles: ['owner', 'admin', 'tenant'],
   },
   {
-    label: 'Maintenance',
+    labelKey: 'maintenance',
     href: '/dashboard/maintenance',
     icon: Wrench,
     roles: ['owner', 'admin', 'tenant'],
   },
   {
-    label: 'Invoices',
+    labelKey: 'invoices',
     href: '/dashboard/invoices',
     icon: Receipt,
     roles: ['owner', 'admin', 'tenant'],
@@ -77,6 +79,13 @@ export function DashboardLayout({
   userRole = 'admin',
 }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // 1. Hook to get the active locale (e.g., 'en' or 'km')
+  const locale = useLocale(); 
+  
+  // 2. Hook to handle translation namespaces
+  const t = useTranslations('Navigation');
+  const commonT = useTranslations('Common');
 
   const filteredNavigation = navigationItems.filter((item) =>
     item.roles.includes(userRole)
@@ -92,11 +101,18 @@ export function DashboardLayout({
       >
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="p-6 border-b">
-            <h1 className="text-2xl font-bold text-primary">RoomFlow</h1>
-            <p className="text-sm text-muted-foreground">
-              Property Management
-            </p>
+          <div className="p-6 border-b space-y-4 flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-primary">RoomFlow</h1>
+              <p className="text-sm text-muted-foreground">
+                {commonT('propertyManagement')}
+              </p>
+            </div>
+            
+            {/* Language Switcher placement inside the sidebar header */}
+            <div className="mb-5">
+              <LanguageSwitcher currentLocale={locale} />
+            </div>
           </div>
 
           {/* Navigation */}
@@ -111,7 +127,8 @@ export function DashboardLayout({
                       className="flex items-center gap-3 px-4 py-2 rounded-lg text-foreground hover:bg-muted transition-colors"
                     >
                       <Icon className="w-5 h-5" />
-                      <span>{item.label}</span>
+                      {/* Translate the label dynamically using the translation file keys */}
+                      <span>{t(item.labelKey)}</span>
                     </Link>
                   </li>
                 );
@@ -129,7 +146,7 @@ export function DashboardLayout({
               }}
             >
               <LogOut className="w-4 h-4" />
-              Logout
+              {commonT('logout')}
             </Button>
           </div>
         </div>

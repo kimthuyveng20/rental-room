@@ -30,6 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/src/components/ui/alert-dialog";
+import { useTranslations } from 'next-intl'; // Import translation hook
 import { Plus, FileText, Printer, Loader2, ChevronDown, Eye, Trash2, Calendar, User, Hash } from 'lucide-react';
 
 interface ActiveLease {
@@ -56,13 +57,14 @@ interface DBInvoice {
 }
 
 export default function InvoicesPage() {
+  const t = useTranslations('Invoices'); // Setup namespace translation hook
+
   const [invoices, setInvoices] = useState<DBInvoice[]>([]);
   const [activeLeases, setActiveLeases] = useState<ActiveLease[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Detail and Deletion UI state variables
   const [selectedInvoice, setSelectedInvoice] = useState<DBInvoice | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<number | null>(null);
@@ -87,7 +89,9 @@ export default function InvoicesPage() {
         fetch('/api/invoices'),
         fetch('/api/leases/active')
       ]);
-      if (!invRes.ok || !leaseRes.ok) throw new Error('Data sync failure');
+      if (!invRes.ok || !leaseRes.ok){
+        return
+      } 
       setInvoices(await invRes.json());
       setActiveLeases(await leaseRes.json());
     } catch (err) {
@@ -108,7 +112,7 @@ export default function InvoicesPage() {
 
   const handleCreateInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.leaseId) return alert("Select a target lease context.");
+    if (!formData.leaseId) return alert(t('selectLeaseAlert'));
     setIsSubmitting(true);
 
     try {
@@ -140,46 +144,42 @@ export default function InvoicesPage() {
   };
 
   const updateInvoiceStatus = async (invoiceId: number, targetStatus: 'pending' | 'paid' | 'overdue') => {
-  try {
-    const response = await fetch(`/api/invoices/${invoiceId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: targetStatus }),
-    });
-    
-    // 💡 Read the custom error message returned from the backend 500 block
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error("SERVER_ERROR_DETAILS:", errorData);
-      throw new Error(errorData.error || 'Failed to modify data table status metadata');
+    try {
+      const response = await fetch(`/api/invoices/${invoiceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: targetStatus }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update status');
+      }
+      
+      setInvoices(prev => 
+        prev.map(inv => inv.id === invoiceId ? { ...inv, status: targetStatus } : inv)
+      );
+      if (selectedInvoice?.id === invoiceId) {
+        setSelectedInvoice(prev => prev ? { ...prev, status: targetStatus } : null);
+      }
+    } catch (error) {
+      console.error(error);
     }
-    
-    // If successful, update local states
-    setInvoices(prev => 
-      prev.map(inv => inv.id === invoiceId ? { ...inv, status: targetStatus } : inv)
-    );
-    if (selectedInvoice?.id === invoiceId) {
-      setSelectedInvoice(prev => prev ? { ...prev, status: targetStatus } : null);
-    }
-  } catch (error) {
-    console.error("FRONTEND_CATCH:", error);
-  }
-};
+  };
 
-  // DELETE execution method talking directly down to the database row
   const handleDeleteInvoice = async () => {
     if (!invoiceToDelete) return;
     try {
       const response = await fetch(`/api/invoices/${invoiceToDelete}`, {
         method: 'DELETE',
       });
-      if (!response.ok) throw new Error('Failed to drop invoice log row entry');
+      if (!response.ok) throw new Error('Failed to delete invoice');
       
       setInvoices(prev => prev.filter(inv => inv.id !== invoiceToDelete));
       setInvoiceToDelete(null);
     } catch (error) {
       console.error(error);
-      alert("Error dropping the asset row entry from the data table system.");
+      alert(t('deleteErrorAlert'));
     }
   };
 
@@ -203,7 +203,6 @@ export default function InvoicesPage() {
     }
   };
 
-  // Cost Aggregations Calculation Utility
   const calculateTotals = (invoice: DBInvoice | null) => {
     if (!invoice) return { rent: 0, water: 0, electricity: 0, grandTotal: 0 };
     const rent = parseFloat(invoice.lease?.monthlyRent || '0');
@@ -219,7 +218,7 @@ export default function InvoicesPage() {
       <DashboardLayout>
         <div className="flex h-[50vh] flex-col items-center justify-center gap-2">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground text-sm font-medium">Compiling system billing architecture ledger matrices...</p>
+          <p className="text-muted-foreground text-sm font-medium">{t('loadingLedger')}</p>
         </div>
       </DashboardLayout>
     );
@@ -233,52 +232,90 @@ export default function InvoicesPage() {
         {/* Top Control Block Row */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Invoices Log</h1>
-            <p className="text-muted-foreground mt-0.5">Manage, print, inspect, and drop utility bills</p>
+            <h1 className="text-3xl font-bold tracking-tight py-2">{t('title')}</h1>
+            <p className="text-muted-foreground mt-0.5">{t('subtitle')}</p>
           </div>
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="font-semibold"><Plus className="w-4 h-4 mr-1.5 stroke-[2.5]" />Create Invoice</Button>
+              <Button className="font-semibold">
+                <Plus className="w-4 h-4 mr-1.5 stroke-[2.5]" />
+                {t('createInvoiceBtn')}
+              </Button>
             </DialogTrigger>
             <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-              {/* [Form content here - completely identical to original configuration] */}
-              <DialogHeader><DialogTitle>Issue New Invoice from Active Leases</DialogTitle></DialogHeader>
-              <form onSubmit={handleCreateInvoice} className="space-y-4 pt-2">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">Select Target Tenant & Lease Context</label>
-                  <select name="leaseId" value={formData.leaseId} onChange={handleInputChange} className="w-full h-10 px-3 py-2 border rounded-md bg-background focus:outline-none text-sm" required>
-                    <option value="">-- Choose Tenant (Room) --</option>
-                    {activeLeases.map((lease) => (
-                      <option key={lease.id} value={lease.id}>{lease.tenant?.user?.name || 'Unknown Tenant'} (Room {lease.room?.roomNumber})</option>
-                    ))}
-                  </select>
+              <DialogHeader>
+                <DialogTitle>{t('dialogTitle')}</DialogTitle>
+              </DialogHeader>
+            <form onSubmit={handleCreateInvoice} className="space-y-4 pt-2">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">{t('labelSelectTenant')}</label>
+                <select name="leaseId" value={formData.leaseId} onChange={handleInputChange} className="w-full h-10 px-3 py-2 border rounded-md bg-background focus:outline-none text-sm" required>
+                  <option value="">-- {t('chooseTenantPlaceholder')} --</option>
+                  {activeLeases.map((lease) => (
+                    <option key={lease.id} value={lease.id}>
+                      {lease.tenant?.user?.name || 'Unknown Tenant'} ({t('roomShort')} {lease.room?.roomNumber})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedLeaseDetails && (
+                <div className="bg-muted/40 p-3 rounded-lg text-sm grid grid-cols-2 gap-2 border">
+                  <div><span className="text-muted-foreground">{t('tenant')}:</span> <strong className="block">{selectedLeaseDetails.tenant?.user?.name}</strong></div>
+                  <div><span className="text-muted-foreground">{t('room')}:</span> <strong className="block">{t('roomShort')} {selectedLeaseDetails.room?.roomNumber}</strong></div>
                 </div>
-                {selectedLeaseDetails && (
-                  <div className="bg-muted/40 p-3 rounded-lg text-sm grid grid-cols-2 gap-2 border">
-                    <div><span className="text-muted-foreground">Tenant:</span> <strong className="block">{selectedLeaseDetails.tenant?.user?.name}</strong></div>
-                    <div><span className="text-muted-foreground">Room:</span> <strong className="block">Room {selectedLeaseDetails.room?.roomNumber}</strong></div>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-4 border-t pt-3">
-                  <Input name="billingPeriod" placeholder="July 2026" value={formData.billingPeriod} onChange={handleInputChange} required />
+              )}
+
+              {/* Billing & Due Date */}
+              <div className="grid grid-cols-2 gap-4 border-t pt-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">{t('placeholderBillingPeriod')}</label>
+                  <Input name="billingPeriod" placeholder={t('placeholderBillingPeriod')} value={formData.billingPeriod} onChange={handleInputChange} required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">{t('dueDate')}</label>
                   <Input name="dueDate" type="date" value={formData.dueDate} onChange={handleInputChange} required />
                 </div>
-                <div className="grid grid-cols-3 gap-4 border-t pt-3">
-                  <Input name="waterLastMonth" type="number" placeholder="Water Last" value={formData.waterLastMonth} onChange={handleInputChange} required />
-                  <Input name="waterThisMonth" type="number" placeholder="Water This" value={formData.waterThisMonth} onChange={handleInputChange} required />
+              </div>
+
+              {/* Water Section */}
+              <div className="grid grid-cols-3 gap-4 border-t pt-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">{t('waterLast')}</label>
+                  <Input name="waterLastMonth" type="number" placeholder={t('waterLast')} value={formData.waterLastMonth} onChange={handleInputChange} required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">{t('waterThis')}</label>
+                  <Input name="waterThisMonth" type="number" placeholder={t('waterThis')} value={formData.waterThisMonth} onChange={handleInputChange} required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">{t('waterRate')}</label>
                   <Input name="waterRate" type="number" step="0.01" value={formData.waterRate} onChange={handleInputChange} required />
                 </div>
-                <div className="grid grid-cols-3 gap-4 border-t pt-3">
-                  <Input name="electricityLastMonth" type="number" placeholder="Electric Last" value={formData.electricityLastMonth} onChange={handleInputChange} required />
-                  <Input name="electricityThisMonth" type="number" placeholder="Electric This" value={formData.electricityThisMonth} onChange={handleInputChange} required />
+              </div>
+
+              {/* Electricity Section */}
+              <div className="grid grid-cols-3 gap-4 border-t pt-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">{t('electricLast')}</label>
+                  <Input name="electricityLastMonth" type="number" placeholder={t('electricLast')} value={formData.electricityLastMonth} onChange={handleInputChange} required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">{t('electricThis')}</label>
+                  <Input name="electricityThisMonth" type="number" placeholder={t('electricThis')} value={formData.electricityThisMonth} onChange={handleInputChange} required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground">{t('electricityRate')}</label>
                   <Input name="electricityRate" type="number" step="0.01" value={formData.electricityRate} onChange={handleInputChange} required />
                 </div>
-                <div className="flex justify-end gap-2 pt-4 border-t">
-                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                  <Button type="submit" disabled={isSubmitting}>Generate Invoice</Button>
-                </div>
-              </form>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>{t('cancel')}</Button>
+                <Button type="submit" disabled={isSubmitting}>{t('generateInvoiceBtn')}</Button>
+              </div>
+            </form>
             </DialogContent>
           </Dialog>
         </div>
@@ -287,7 +324,7 @@ export default function InvoicesPage() {
         {invoices.length === 0 ? (
           <div className="border border-dashed rounded-xl p-16 text-center text-muted-foreground flex flex-col items-center justify-center gap-2 bg-card shadow-sm">
             <FileText className="w-10 h-10 text-muted-foreground/40" />
-            <p className="text-base font-medium">No tracking billing configurations exist currently inside database files.</p>
+            <p className="text-base font-medium">{t('noInvoices')}</p>
           </div>
         ) : (
           <Card className="shadow-sm rounded-xl overflow-hidden border">
@@ -296,12 +333,12 @@ export default function InvoicesPage() {
                 <table className="w-full text-sm text-left">
                   <thead className="text-xs uppercase bg-muted/60 border-b text-muted-foreground font-semibold tracking-wider">
                     <tr>
-                      <th className="px-6 py-4">Invoice ID</th>
-                      <th className="px-6 py-4">Tenant Assignment</th>
-                      <th className="px-6 py-4">Billing Period</th>
-                      <th className="px-6 py-4">Total Balance</th>
-                      <th className="px-6 py-4">Lifecycle Status</th>
-                      <th className="px-6 py-4 text-right">Actions Operations</th>
+                      <th className="px-6 py-4">{t('thInvoiceId')}</th>
+                      <th className="px-6 py-4">{t('thTenant')}</th>
+                      <th className="px-6 py-4">{t('thPeriod')}</th>
+                      <th className="px-6 py-4">{t('thTotal')}</th>
+                      <th className="px-6 py-4">{t('thStatus')}</th>
+                      <th className="px-6 py-4 text-right">{t('thActions')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y bg-card text-foreground">
@@ -313,30 +350,28 @@ export default function InvoicesPage() {
                             #INV-{String(invoice.id).padStart(5, '0')}
                           </td>
                           <td className="px-6 py-4">
-                            <div className="font-semibold tracking-tight text-sm">{invoice.lease?.tenant?.user?.name || 'Unknown Entity Profile'}</div>
-                            <div className="text-xs text-muted-foreground font-medium">Room Unit: {invoice.lease?.room?.roomNumber || 'Unassigned'}</div>
+                            <div className="font-semibold tracking-tight text-sm">{invoice.lease?.tenant?.user?.name || t('unknownTenant')}</div>
+                            <div className="text-xs text-muted-foreground font-medium">{t('room')}: {invoice.lease?.room?.roomNumber || t('unassigned')}</div>
                           </td>
                           <td className="px-6 py-4 text-muted-foreground font-medium">{invoice.billingPeriod}</td>
                           <td className="px-6 py-4 font-bold text-foreground text-sm">${grandTotal.toFixed(2)}</td>
                           
-                          {/* DYNAMIC DROPDOWN STATUS INTERACTION MATRIX */}
                           <td className="px-6 py-4">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="outline" size="sm" className={`h-7 px-2.5 text-xs font-semibold rounded-full border capitalize gap-1 ${getStatusBadgeStyle(invoice.status)}`}>
-                                  {invoice.status}
+                                  {t(`status_${invoice.status}`)}
                                   <ChevronDown className="w-3 h-3 opacity-60 flex-shrink-0" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="start" className="w-32">
-                                <DropdownMenuItem className="text-xs" onClick={() => updateInvoiceStatus(invoice.id, 'pending')}>Pending</DropdownMenuItem>
-                                <DropdownMenuItem className="text-xs text-emerald-600" onClick={() => updateInvoiceStatus(invoice.id, 'paid')}>Paid</DropdownMenuItem>
-                                <DropdownMenuItem className="text-xs text-rose-600" onClick={() => updateInvoiceStatus(invoice.id, 'overdue')}>Overdue</DropdownMenuItem>
+                                <DropdownMenuItem className="text-xs" onClick={() => updateInvoiceStatus(invoice.id, 'pending')}>{t('status_pending')}</DropdownMenuItem>
+                                <DropdownMenuItem className="text-xs text-emerald-600" onClick={() => updateInvoiceStatus(invoice.id, 'paid')}>{t('status_paid')}</DropdownMenuItem>
+                                <DropdownMenuItem className="text-xs text-rose-600" onClick={() => updateInvoiceStatus(invoice.id, 'overdue')}>{t('status_overdue')}</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </td>
 
-                          {/* ACTION PANEL MATRIX BUTTON CORES */}
                           <td className="px-6 py-4 text-right space-x-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openDetailsPanel(invoice)}>
                               <Eye className="w-4 h-4" />
@@ -359,9 +394,7 @@ export default function InvoicesPage() {
         )}
       </div>
 
-      {/* ========================================================================= */}
-      {/* SLIDE-OUT DETAIL DRAWER (SHEET)                                          */}
-      {/* ========================================================================= */}
+      {/* DETAIL DRAWER SHEET */}
       <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto">
           {selectedInvoice && (
@@ -370,67 +403,61 @@ export default function InvoicesPage() {
                 <div className="flex items-center gap-2 text-xs font-mono text-primary font-bold">
                   <Hash className="w-3.5 h-3.5" /> INV-{String(selectedInvoice.id).padStart(5, '0')}
                 </div>
-                <SheetTitle className="text-2xl font-black tracking-tight mt-1">Invoice Details</SheetTitle>
-                <SheetDescription>Detailed structural utility & rental billing summaries.</SheetDescription>
+                <SheetTitle className="text-2xl font-black tracking-tight mt-1">{t('drawerTitle')}</SheetTitle>
+                <SheetDescription>{t('drawerSubtitle')}</SheetDescription>
               </SheetHeader>
 
-              {/* Status & Profile Section */}
               <div className="p-4 rounded-xl border bg-muted/40 space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-muted-foreground font-medium">Lifecycle Status</span>
-                  <Badge className={`capitalize font-bold text-xs ${getStatusBadgeStyle(selectedInvoice.status)}`}>{selectedInvoice.status}</Badge>
+                  <span className="text-xs text-muted-foreground font-medium">{t('thStatus')}</span>
+                  <Badge className={`capitalize font-bold text-xs ${getStatusBadgeStyle(selectedInvoice.status)}`}>{t(`status_${selectedInvoice.status}`)}</Badge>
                 </div>
                 <div className="border-t border-muted pt-3 flex items-start gap-3">
                   <User className="w-4 h-4 mt-0.5 text-muted-foreground" />
                   <div className="text-sm">
                     <strong className="block font-bold">{selectedInvoice.lease?.tenant?.user?.name}</strong>
-                    <span className="text-xs text-muted-foreground">Room Unit: Room {selectedInvoice.lease?.room?.roomNumber}</span>
+                    <span className="text-xs text-muted-foreground">{t('room')}: {t('roomShort')} {selectedInvoice.lease?.room?.roomNumber}</span>
                   </div>
                 </div>
                 <div className="border-t border-muted pt-3 flex items-start gap-3">
                   <Calendar className="w-4 h-4 mt-0.5 text-muted-foreground" />
                   <div className="text-sm">
-                    <span className="block font-medium text-xs text-muted-foreground">Cycle period: {selectedInvoice.billingPeriod}</span>
-                    <span className="block font-bold text-xs text-rose-500 mt-0.5">Due Date: {new Date(selectedInvoice.dueDate).toLocaleDateString()}</span>
+                    <span className="block font-medium text-xs text-muted-foreground">{t('cyclePeriodLabel')}: {selectedInvoice.billingPeriod}</span>
+                    <span className="block font-bold text-xs text-rose-500 mt-0.5">{t('dueDateLabel')}: {new Date(selectedInvoice.dueDate).toLocaleDateString()}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Itemized Line-Items Breakdown */}
               <div className="space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Itemized Statement Breakdown</h3>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t('itemizedBreakdownTitle')}</h3>
                 <div className="border rounded-xl p-4 divide-y space-y-3 bg-card shadow-sm text-sm">
-                  {/* Rent */}
                   <div className="flex justify-between items-center pt-1">
                     <div>
-                      <span className="font-semibold block">Base Room Rental Fee</span>
-                      <span className="text-xs text-muted-foreground">Standard Contractual flat-rate</span>
+                      <span className="font-semibold block">{t('baseRoomRent')}</span>
+                      <span className="text-xs text-muted-foreground">{t('baseRoomRentSub')}</span>
                     </div>
                     <span className="font-bold">${activeDetails.rent.toFixed(2)}</span>
                   </div>
-                  {/* Water */}
                   <div className="flex justify-between items-center pt-3">
                     <div>
-                      <span className="font-semibold block">Water Consumption</span>
+                      <span className="font-semibold block">{t('waterConsumption')}</span>
                       <span className="text-xs text-muted-foreground font-mono">
                         ({selectedInvoice.waterThisMonth} - {selectedInvoice.waterLastMonth}) × ${selectedInvoice.waterRate}
                       </span>
                     </div>
                     <span className="font-bold">${activeDetails.water.toFixed(2)}</span>
                   </div>
-                  {/* Electric */}
                   <div className="flex justify-between items-center pt-3">
                     <div>
-                      <span className="font-semibold block">Electricity Grid Use</span>
+                      <span className="font-semibold block">{t('electricityConsumption')}</span>
                       <span className="text-xs text-muted-foreground font-mono">
                         ({selectedInvoice.electricityThisMonth} - {selectedInvoice.electricityLastMonth}) × ${selectedInvoice.electricityRate}
                       </span>
                     </div>
                     <span className="font-bold">${activeDetails.electricity.toFixed(2)}</span>
                   </div>
-                  {/* Grand total */}
                   <div className="flex justify-between items-center pt-4 border-t-2 border-foreground text-base">
-                    <span className="font-black">Total Bill Due</span>
+                    <span className="font-black">{t('totalBillDue')}</span>
                     <span className="font-black text-primary">${activeDetails.grandTotal.toFixed(2)}</span>
                   </div>
                 </div>
@@ -438,7 +465,7 @@ export default function InvoicesPage() {
 
               <div className="pt-4 flex gap-2">
                 <Button className="w-full gap-1.5 font-semibold" onClick={() => { setIsDetailOpen(false); triggerBrowserPrintSequence(selectedInvoice); }}>
-                  <Printer className="w-4 h-4" /> Print Document Statement
+                  <Printer className="w-4 h-4" /> {t('printStatementBtn')}
                 </Button>
               </div>
             </div>
@@ -446,96 +473,77 @@ export default function InvoicesPage() {
         </SheetContent>
       </Sheet>
 
-      {/* ========================================================================= */}
-      {/* DELETION CONFIRMATION DIALOG (ALERT DIALOG)                               */}
-      {/* ========================================================================= */}
-        <AlertDialog
-        open={invoiceToDelete !== null}
-        onOpenChange={(val) => {
-            if (!val) {
-            setInvoiceToDelete(null);
-            }
-        }}
-        >
+      {/* DELETION DIALOG */}
+      <AlertDialog open={invoiceToDelete !== null} onOpenChange={(val) => { if (!val) setInvoiceToDelete(null); }}>
         <AlertDialogContent>
-            <AlertDialogHeader>
-            <AlertDialogTitle>
-                Are you absolutely certain?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-                This permanent action removes this specific billing invoice row
-                tracking matrix from database tables. It cannot be undone.
-            </AlertDialogDescription>
-            </AlertDialogHeader>
-
-            <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={handleDeleteInvoice}
-            >
-                Delete Permanently
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('deleteTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('deleteDescription')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDeleteInvoice}>
+              {t('deleteConfirmBtn')}
             </AlertDialogAction>
-            </AlertDialogFooter>
+          </AlertDialogFooter>
         </AlertDialogContent>
-        </AlertDialog>
-      {/* ========================================================================= */}
-      {/* HIGH-CONTRAST INVOICE PRINT VIEW LAYOUT                                   */}
-      {/* ========================================================================= */}
+      </AlertDialog>
+
+      {/* HIGH-CONTRAST INVOICE PRINT VIEW */}
       {selectedInvoice && (
-        <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:text-black  z-50  p-12 bg-white text-black font-sans min-h-screen text-xs leading-relaxed">
+        <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:text-black z-50 p-12 bg-white text-black font-sans min-h-screen text-xs leading-relaxed">
           <div className="flex justify-between items-start border-b-4 border-black pb-8">
             <div className="space-y-1">
-              <h2 className="text-4xl font-black tracking-tight text-black uppercase">RENTAL INVOICE</h2>
-              <p className="text-gray-600 font-mono text-sm tracking-widest">SERIAL ID: #INV-{String(selectedInvoice.id).padStart(5, '0')}</p>
+              <h2 className="text-4xl font-black tracking-tight text-black uppercase">{t('printHeader')}</h2>
+              <p className="text-gray-600 font-mono text-sm tracking-widest">{t('serialId')}: #INV-{String(selectedInvoice.id).padStart(5, '0')}</p>
             </div>
             <div className="text-right space-y-0.5">
-              <strong className="text-base text-black block font-black uppercase tracking-wider">ESTATE OPERATIONS HQ</strong>
+              <strong className="text-base text-black block font-black uppercase tracking-wider">{t('companyName')}</strong>
               <p className="text-gray-500 font-mono">billing@property-management.local</p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-12 my-10 bg-gray-100 p-6 rounded-lg border border-gray-300">
             <div className="space-y-1.5">
-              <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">Bill To Recipient</span>
+              <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">{t('printBillTo')}</span>
               <strong className="text-lg text-black block font-black tracking-tight">{selectedInvoice.lease?.tenant?.user?.name}</strong>
-              <p className="text-gray-700 text-xs font-medium">Assigned Room Unit: <strong className="text-black font-bold">Room {selectedInvoice.lease?.room?.roomNumber}</strong></p>
+              <p className="text-gray-700 text-xs font-medium">{t('printAssignedRoom')}: <strong className="text-black font-bold">{t('roomShort')} {selectedInvoice.lease?.room?.roomNumber}</strong></p>
             </div>
             <div className="space-y-1.5 text-right">
-              <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">Statement Summary</span>
-              <p className="text-gray-700 text-xs">Target Cycle: <strong>{selectedInvoice.billingPeriod}</strong></p>
-              <p className="text-gray-700 text-xs">Status: <strong>{selectedInvoice.status.toUpperCase()}</strong></p>
-              <p className="text-black font-black text-xs border-t border-gray-300 pt-1 mt-1 inline-block">Payment Deadline Target: {new Date(selectedInvoice.dueDate).toLocaleDateString()}</p>
+              <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">{t('printStatementSummary')}</span>
+              <p className="text-gray-700 text-xs">{t('printTargetCycle')}: <strong>{selectedInvoice.billingPeriod}</strong></p>
+              <p className="text-gray-700 text-xs">{t('thStatus')}: <strong>{t(`status_${selectedInvoice.status}`).toUpperCase()}</strong></p>
+              <p className="text-black font-black text-xs border-t border-gray-300 pt-1 mt-1 inline-block">{t('printDeadline')}: {new Date(selectedInvoice.dueDate).toLocaleDateString()}</p>
             </div>
           </div>
 
           <table className="w-full my-8 text-left border-collapse">
             <thead>
               <tr className="border-b-2 border-black text-[10px] uppercase text-black font-black tracking-wider">
-                <th className="py-2.5">Operational Item Matrix Lines</th>
-                <th className="py-2.5 text-right">Meter Reading Indices</th>
-                <th className="py-2.5 text-right">Consumed Volume</th>
-                <th className="py-2.5 text-right">Unit Scalar Rate</th>
-                <th className="py-2.5 text-right">Line Subtotal</th>
+                <th className="py-2.5">{t('printThItems')}</th>
+                <th className="py-2.5 text-right">{t('printThMeter')}</th>
+                <th className="py-2.5 text-right">{t('printThConsumed')}</th>
+                <th className="py-2.5 text-right">{t('printThRate')}</th>
+                <th className="py-2.5 text-right">{t('printThSubtotal')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-300 text-gray-900 text-xs font-medium">
               <tr>
-                <td className="py-4 font-bold text-black">Contractual Base Room Rental Fees</td>
+                <td className="py-4 font-bold text-black">{t('baseRoomRent')}</td>
                 <td className="py-4 text-right text-gray-400">--</td>
-                <td className="py-4 text-right">1 Month cycle</td>
+                <td className="py-4 text-right">{t('printMonthCycle')}</td>
                 <td className="py-4 text-right">${activeDetails.rent.toFixed(2)}</td>
                 <td className="py-4 text-right font-bold text-black">${activeDetails.rent.toFixed(2)}</td>
               </tr>
               <tr>
-                <td className="py-4 font-bold text-black">Water Utility Supply</td>
+                <td className="py-4 font-bold text-black">{t('waterSupplyItem')}</td>
                 <td className="py-4 text-right text-gray-500 font-mono text-[11px]">({selectedInvoice.waterLastMonth} ➔ {selectedInvoice.waterThisMonth})</td>
-                <td className="py-4 text-right">{Math.max(0, selectedInvoice.waterThisMonth - selectedInvoice.waterLastMonth)} units</td>
+                <td className="py-4 text-right">{Math.max(0, selectedInvoice.waterThisMonth - selectedInvoice.waterLastMonth)} {t('printUnits')}</td>
                 <td className="py-4 text-right">${parseFloat(selectedInvoice.waterRate).toFixed(2)}</td>
                 <td className="py-4 text-right font-bold text-black">${activeDetails.water.toFixed(2)}</td>
               </tr>
               <tr>
-                <td className="py-4 font-bold text-black">Electrical Energy Consumption</td>
+                <td className="py-4 font-bold text-black">{t('electricityEnergyItem')}</td>
                 <td className="py-4 text-right text-gray-500 font-mono text-[11px]">({selectedInvoice.electricityLastMonth} ➔ {selectedInvoice.electricityThisMonth})</td>
                 <td className="py-4 text-right">{Math.max(0, selectedInvoice.electricityThisMonth - selectedInvoice.electricityLastMonth)} kWh</td>
                 <td className="py-4 text-right">${parseFloat(selectedInvoice.electricityRate).toFixed(2)}</td>
@@ -547,11 +555,11 @@ export default function InvoicesPage() {
           <div className="flex justify-end mt-12 border-t-4 border-black pt-6">
             <div className="w-72 space-y-2 text-right">
               <div className="flex justify-between text-xs text-gray-600 font-semibold">
-                <span>Calculated Net Subtotal:</span>
+                <span>{t('printSubtotal')}:</span>
                 <span>${activeDetails.grandTotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-xl font-black border-t-2 pt-3 border-black text-black">
-                <span>TOTAL BALANCE DUE:</span>
+                <span>{t('printTotalDue')}:</span>
                 <span>${activeDetails.grandTotal.toFixed(2)}</span>
               </div>
             </div>

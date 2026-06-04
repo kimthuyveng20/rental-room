@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Button } from '@/src/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/src/components/ui/tabs';
@@ -13,116 +12,57 @@ import {
   Clock,
 } from 'lucide-react';
 import { DashboardLayout } from '@/src/components/dashboard-layout';
+import { getDashboardStats, getMaintenanceRequests, getRecentPayments } from '@/src/lib/queries';
+import { getTranslations } from 'next-intl/server';
 
-export default function DashboardPage() {
-  // Mock data - replace with actual API calls
-  const stats = [
-    {
-      label: 'Total Properties',
-      value: 12,
-      icon: Building,
-      color: 'bg-blue-100 text-blue-700',
-    },
-    {
-      label: 'Active Rooms',
-      value: 48,
-      icon: DoorOpen,
-      color: 'bg-green-100 text-green-700',
-    },
-    {
-      label: 'Total Tenants',
-      value: 45,
-      icon: Users,
-      color: 'bg-purple-100 text-purple-700',
-    },
-    {
-      label: 'Monthly Revenue',
-      value: '$12,450',
-      icon: DollarSign,
-      color: 'bg-orange-100 text-orange-700',
-    },
-  ];
+// Icon styling dictionary matching your schema metrics
+const STATS_CONFIG: Record<string, { icon: any; color: string }> = {
+  'Total Properties': { icon: Building, color: 'bg-blue-100 text-blue-700' },
+  'Active Rooms': { icon: DoorOpen, color: 'bg-green-100 text-green-700' },
+  'Total Tenants': { icon: Users, color: 'bg-purple-100 text-purple-700' },
+  'Monthly Revenue': { icon: DollarSign, color: 'bg-orange-100 text-orange-700' },
+};
 
-  const recentPayments = [
-    {
-      id: 1,
-      tenant: 'John Smith',
-      room: '101',
-      amount: '$1,200',
-      date: '2024-06-01',
-      status: 'completed',
-    },
-    {
-      id: 2,
-      tenant: 'Jane Doe',
-      room: '202',
-      amount: '$1,200',
-      date: '2024-06-02',
-      status: 'completed',
-    },
-    {
-      id: 3,
-      tenant: 'Mike Johnson',
-      room: '103',
-      amount: '$1,200',
-      date: '2024-06-03',
-      status: 'pending',
-    },
-  ];
+export default async function DashboardPage() {
+  const [dbStats, recentPayments, maintenanceRequests] = await Promise.all([
+    getDashboardStats(),
+    getRecentPayments(),
+    getMaintenanceRequests(),
+  ]);
 
-  const maintenanceRequests = [
-    {
-      id: 1,
-      room: '205',
-      issue: 'Broken door handle',
-      priority: 'high',
-      status: 'open',
-      date: '2024-06-04',
-    },
-    {
-      id: 2,
-      room: '112',
-      issue: 'Leaky faucet',
-      priority: 'medium',
-      status: 'in-progress',
-      date: '2024-06-03',
-    },
-    {
-      id: 3,
-      room: '308',
-      issue: 'AC not working',
-      priority: 'high',
-      status: 'open',
-      date: '2024-06-02',
-    },
-  ];
+  const t = await getTranslations("dashboard");
 
   return (
     <DashboardLayout userRole="owner">
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <h1 className="text-3xl font-bold">{t('title')}</h1>
           <p className="text-muted-foreground mt-1">
-            Welcome back! Here&apos;s your property overview.
+            {t('welcomeMessage')}
           </p>
         </div>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map((stat) => {
-            const Icon = stat.icon;
+          {dbStats.map((stat) => {
+            const config = STATS_CONFIG[stat.label] || { icon: Building, color: 'bg-gray-100 text-gray-700' };
+            const Icon = config.icon;
+            
+            // Generate a clean key for localization (e.g., "Total Properties" -> "totalProperties")
+            const translationKey = stat.label.toLowerCase().replace(/[^a-zA-Z0-9]+(.)/g, (m, chr) => chr.toUpperCase());
+
             return (
               <Card key={stat.label}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">
-                        {stat.label}
+                        {t(`stats.${translationKey}`, { defaultValue: stat.label })}
                       </p>
                       <p className="text-2xl font-bold mt-2">{stat.value}</p>
                     </div>
-                    <div className={`p-3 rounded-lg ${stat.color}`}>
+                    <div className={`p-3 rounded-lg ${config.color}`}>
                       <Icon className="w-6 h-6" />
                     </div>
                   </div>
@@ -135,15 +75,15 @@ export default function DashboardPage() {
         {/* Content Tabs */}
         <Tabs defaultValue="payments" className="w-full">
           <TabsList>
-            <TabsTrigger value="payments">Recent Payments</TabsTrigger>
-            <TabsTrigger value="maintenance">Maintenance Requests</TabsTrigger>
+            <TabsTrigger value="payments">{t('tabs.recentPayments')}</TabsTrigger>
+            <TabsTrigger value="maintenance">{t('tabs.maintenanceRequests')}</TabsTrigger>
           </TabsList>
 
           {/* Recent Payments Tab */}
           <TabsContent value="payments">
             <Card>
               <CardHeader>
-                <CardTitle>Recent Payments</CardTitle>
+                <CardTitle>{t('payments.title')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -155,26 +95,30 @@ export default function DashboardPage() {
                       <div className="flex-1">
                         <p className="font-medium">{payment.tenant}</p>
                         <p className="text-sm text-muted-foreground">
-                          Room {payment.room} • {payment.date}
+                          {t('payments.roomInfo', { room: payment.room })} • {payment.date ? new Date(payment.date).toLocaleDateString() : t('common.na')}
                         </p>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className="font-semibold">{payment.amount}</span>
+                        <span className="font-semibold">
+                          {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(payment.amount))}
+                        </span>
                         <Badge
                           variant={
-                            payment.status === 'completed'
+                            payment.status === 'paid'
                               ? 'default'
+                              : payment.status === 'overdue'
+                              ? 'destructive'
                               : 'secondary'
                           }
                         >
-                          {payment.status}
+                          {t(`payments.status.${payment.status}`, { defaultValue: payment.status })}
                         </Badge>
                       </div>
                     </div>
                   ))}
                 </div>
                 <Button variant="outline" className="w-full mt-4">
-                  View All Payments
+                  {t('payments.viewAll')}
                 </Button>
               </CardContent>
             </Card>
@@ -184,7 +128,7 @@ export default function DashboardPage() {
           <TabsContent value="maintenance">
             <Card>
               <CardHeader>
-                <CardTitle>Maintenance Requests</CardTitle>
+                <CardTitle>{t('maintenance.title')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -194,33 +138,34 @@ export default function DashboardPage() {
                       className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted transition-colors"
                     >
                       <div className="flex-1">
-                        <p className="font-medium">Room {request.room}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {request.issue}
-                        </p>
+                        <p className="font-medium">{t('maintenance.roomInfo', { room: request.room })}</p>
+                        <p className="text-sm text-muted-foreground">{request.issue}</p>
                       </div>
                       <div className="flex items-center gap-4">
                         <Badge
                           variant={
-                            request.priority === 'high'
+                            request.priority === 'urgent' || request.priority === 'high'
                               ? 'destructive'
                               : 'secondary'
                           }
                         >
-                          {request.priority}
+                          {t(`maintenance.priority.${request.priority}`, { defaultValue: request.priority })}
                         </Badge>
                         {request.status === 'open' && (
                           <AlertCircle className="w-5 h-5 text-red-500" />
                         )}
-                        {request.status === 'in-progress' && (
+                        {request.status === 'in_progress' && (
                           <Clock className="w-5 h-5 text-yellow-500" />
+                        )}
+                        {request.status === 'completed' && (
+                          <CheckCircle className="w-5 h-5 text-green-500" />
                         )}
                       </div>
                     </div>
                   ))}
                 </div>
                 <Button variant="outline" className="w-full mt-4">
-                  View All Requests
+                  {t('maintenance.viewAll')}
                 </Button>
               </CardContent>
             </Card>

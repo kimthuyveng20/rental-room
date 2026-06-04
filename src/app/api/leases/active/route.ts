@@ -14,7 +14,7 @@ export async function GET() {
         },
       },
     });
-
+    console.log("Leases", activeLeases)
     return NextResponse.json(activeLeases);
   } catch (error) {
     console.error('FETCH_ACTIVE_LEASES_ERROR:', error);

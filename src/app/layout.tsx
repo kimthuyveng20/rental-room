@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import {  Angkor, Arimo } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
-import { NextIntlClientProvider } from 'next-intl'
+import { NextIntlClientProvider, useTranslations } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
 import './globals.css'
 

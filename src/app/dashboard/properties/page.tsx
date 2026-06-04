@@ -25,18 +25,7 @@ import { Plus, Edit2, MapPin, Loader2, AlertCircle, Home } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-
-// Client verification layout validation schema
-const propertySchema = z.object({
-  name: z.string().min(1, 'Property name is required'),
-  address: z.string().min(1, 'Street physical address is required'),
-  city: z.string().min(1, 'City is required'),
-  state: z.string().min(1, 'State jurisdiction code is required'),
-  zipCode: z.string().min(1, 'Postal zip code tracking indicator is required'),
-  description: z.string().optional(),
-});
-
-type PropertyFormData = z.infer<typeof propertySchema>;
+import { useTranslations } from 'next-intl';
 
 interface DBRoomRelation {
   id: number;
@@ -49,16 +38,29 @@ interface DBProperty {
   address: string;
   city: string;
   state: string;
-  zip: string; // Reflects your database 'zip' field syntax configuration
+  zip: string;
   description: string | null;
   rooms: DBRoomRelation[];
 }
 
 export default function PropertiesPage() {
+  const t = useTranslations('properties');
   const [properties, setProperties] = useState<DBProperty[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Dynamic client schema generation using local translations for error tracking messages
+  const propertySchema = z.object({
+    name: z.string().min(1, t('validation.nameRequired')),
+    address: z.string().min(1, t('validation.addressRequired')),
+    city: z.string().min(1, t('validation.cityRequired')),
+    state: z.string().min(1, t('validation.stateRequired')),
+    zipCode: z.string().min(1, t('validation.zipRequired')),
+    description: z.string().optional(),
+  });
+
+  type PropertyFormData = z.infer<typeof propertySchema>;
 
   const form = useForm<PropertyFormData>({
     resolver: zodResolver(propertySchema),
@@ -75,12 +77,12 @@ export default function PropertiesPage() {
   const syncPropertiesMatrix = async () => {
     try {
       const response = await fetch('/api/properties');
-      if (!response.ok) throw new Error('Data processing transmission failure');
+      if (!response.ok) throw new Error(t('errors.transmissionFailure'));
       const synchronizedArray = await response.json();
       setProperties(synchronizedArray);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      setErrorMessage('Could not load synced property listings matrix array.');
+      setErrorMessage(error.message || t('errors.loadFailure'));
     } finally {
       setLoading(false);
     }
@@ -101,7 +103,7 @@ export default function PropertiesPage() {
 
       if (!response.ok) {
         const errorBody = await response.json();
-        throw new Error(errorBody.error || 'Server rejected runtime parameters data pipeline write');
+        throw new Error(errorBody.error || t('errors.serverRejected'));
       }
 
       form.reset();
@@ -109,8 +111,8 @@ export default function PropertiesPage() {
       await syncPropertiesMatrix();
     } catch (error: any) {
       setErrorMessage(error.message);
-    } finally{
-        form.clearErrors();
+    } finally {
+      form.clearErrors();
     }
   };
 
@@ -119,7 +121,7 @@ export default function PropertiesPage() {
       <DashboardLayout userRole="owner">
         <div className="flex h-[50vh] flex-col items-center justify-center gap-2">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground text-sm">Compiling estate framework records mapping arrays...</p>
+          <p className="text-muted-foreground text-sm">{t('loadingText')}</p>
         </div>
       </DashboardLayout>
     );
@@ -131,19 +133,19 @@ export default function PropertiesPage() {
         {/* Header Block */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">Properties</h1>
-            <p className="text-muted-foreground mt-1">Real-time complex inventory tracking log analytics</p>
+            <h1 className="text-3xl font-bold py-2">{t('title')}</h1>
+            <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
           </div>
-          
+
           <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) { form.reset(); setErrorMessage(null); } }}>
             <DialogTrigger asChild>
               <Button className="gap-2">
-                <Plus className="w-4 h-4" /> Add Property
+                <Plus className="w-4 h-4" /> {t('addBtn')}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Provision New Property Development</DialogTitle>
+                <DialogTitle>{t('form.title')}</DialogTitle>
               </DialogHeader>
 
               {errorMessage && (
@@ -160,9 +162,9 @@ export default function PropertiesPage() {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Development Name</FormLabel>
+                        <FormLabel>{t('form.labels.name')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., Summit Ridge Apartments" {...field} />
+                          <Input placeholder={t('form.placeholders.name')} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -174,9 +176,9 @@ export default function PropertiesPage() {
                     name="address"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Street Location Address</FormLabel>
+                        <FormLabel>{t('form.labels.address')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="123 Main St Suite C" {...field} />
+                          <Input placeholder={t('form.placeholders.address')} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -189,9 +191,9 @@ export default function PropertiesPage() {
                       name="city"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>City</FormLabel>
+                          <FormLabel>{t('form.labels.city')}</FormLabel>
                           <FormControl>
-                            <Input placeholder="New York" {...field} />
+                            <Input placeholder={t('form.placeholders.city')} {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -203,9 +205,9 @@ export default function PropertiesPage() {
                       name="state"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>State</FormLabel>
+                          <FormLabel>{t('form.labels.state')}</FormLabel>
                           <FormControl>
-                            <Input placeholder="NY" {...field} />
+                            <Input placeholder={t('form.placeholders.state')} {...field} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -218,9 +220,9 @@ export default function PropertiesPage() {
                     name="zipCode"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Zip Code</FormLabel>
+                        <FormLabel>{t('form.labels.zipCode')}</FormLabel>
                         <FormControl>
-                          <Input placeholder="10001" {...field} />
+                          <Input placeholder={t('form.placeholders.zipCode')} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -232,9 +234,9 @@ export default function PropertiesPage() {
                     name="description"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Public Profile Description (Optional)</FormLabel>
+                        <FormLabel>{t('form.labels.description')}</FormLabel>
                         <FormControl>
-                          <Textarea placeholder="Enter asset parameter structural notes..." {...field} />
+                          <Textarea placeholder={t('form.placeholders.description')} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -242,7 +244,7 @@ export default function PropertiesPage() {
                   />
 
                   <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                    {form.formState.isSubmitting ? 'Writing System Blocks...' : 'Save Estate Configuration Block'}
+                    {form.formState.isSubmitting ? t('form.btnSubmitting') : t('form.btnSave')}
                   </Button>
                 </form>
               </Form>
@@ -258,16 +260,15 @@ export default function PropertiesPage() {
           </div>
         )}
 
-        {/* Cards Grid Grid Layout Section */}
+        {/* Cards Grid Section */}
         {properties.length === 0 ? (
           <div className="border border-dashed rounded-lg p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
             <Home className="w-8 h-8 text-muted-foreground/60" />
-            <p>No managed property entities parsed inside database instances.</p>
+            <p>{t('noProperties')}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {properties.map((property) => {
-              // RENDER COMPUTATION ARRAY CALCULATIONS FROM LIVE MATRIX
               const totalRoomsCalculated = property.rooms?.length || 0;
               const occupiedRoomsCalculated = property.rooms?.filter(r => r.status === 'occupied').length || 0;
               
@@ -282,35 +283,34 @@ export default function PropertiesPage() {
                       <div className="flex-1 min-w-0">
                         <CardTitle className="truncate text-xl">{property.name}</CardTitle>
                         <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1 truncate">
-                          <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground/80" />
+                          <MapPin className="w-3.5 h-3.5 shrink-0 text-muted-foreground/80" />
                           <span className="truncate">
                             {property.address}, {property.city}, {property.state} {property.zip}
                           </span>
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 flex-shrink-0">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0">
                         <Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" />
                       </Button>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground line-clamp-2 min-h-[2.5rem]">
-                      {property.description || <span className="italic opacity-60 text-xs">No descriptive tags documented.</span>}
+                    <p className="text-sm text-muted-foreground line-clamp-2 min-h-10">
+                      {property.description || <span className="italic opacity-60 text-xs">{t('noDescription')}</span>}
                     </p>
                     
-                    {/* Database Relational Calculations Section */}
                     <div className="grid grid-cols-2 gap-2 pt-4 border-t border-muted">
                       <div>
                         <p className="text-2xl font-bold tracking-tight text-foreground">
                           {occupiedRoomsCalculated} <span className="text-sm font-normal text-muted-foreground">/ {totalRoomsCalculated}</span>
                         </p>
-                        <p className="text-xs text-muted-foreground font-medium mt-0.5">Rooms Occupied</p>
+                        <p className="text-xs text-muted-foreground font-medium mt-0.5">{t('roomsOccupied')}</p>
                       </div>
                       <div>
                         <p className="text-2xl font-bold tracking-tight text-foreground">
                           {occupancyPercentageRate}%
                         </p>
-                        <p className="text-xs text-muted-foreground font-medium mt-0.5">Yield Efficiency</p>
+                        <p className="text-xs text-muted-foreground font-medium mt-0.5">{t('yieldEfficiency')}</p>
                       </div>
                     </div>
                   </CardContent>

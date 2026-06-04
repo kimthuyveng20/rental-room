@@ -75,25 +75,26 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  try {
-    // We pass a configuration object to findMany to include nested relations
-    const data = await db.query.invoices.findMany({
-      with: {
-        lease: {
-          with: {
-            tenant: {
-              with: {
-                user: true // true pulls all columns from the user table, including 'name'
-              }
+ try {
+  // We pass a configuration object to findMany to include nested relations
+  const data = await db.query.invoices.findMany({
+    with: {
+      lease: {
+        with: {
+          tenant: {
+            with: {
+              user: true 
             }
-          }
+          },
+          room: true 
         }
       }
-    });
+    }
+  });
 
-    return NextResponse.json(data || []); 
-  } catch (error) {
-    console.error("BACKEND_INVOICE_CRASH:", error);
-    return NextResponse.json({ error: "Failed to load invoices records matrix" }, { status: 500 });
-  }
+  return NextResponse.json(data || []); 
+} catch (error) {
+  console.error("BACKEND_INVOICE_CRASH:", error);
+  return NextResponse.json({ error: "Failed to load invoices records matrix" }, { status: 500 });
+}
 }
