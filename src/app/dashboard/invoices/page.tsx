@@ -30,8 +30,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/src/components/ui/alert-dialog";
-import { useTranslations } from 'next-intl'; // Import translation hook
-import { Plus, FileText, Printer, Loader2, ChevronDown, Eye, Trash2, Calendar, User, Hash } from 'lucide-react';
+import { useTranslations } from 'next-intl'; 
+import { Plus, FileText, Printer, Loader2, ChevronDown, Eye, Trash2, Calendar, User, Hash, Share2, MessageSquare, Send } from 'lucide-react';
 
 interface ActiveLease {
   id: number;
@@ -57,7 +57,7 @@ interface DBInvoice {
 }
 
 export default function InvoicesPage() {
-  const t = useTranslations('Invoices'); // Setup namespace translation hook
+  const t = useTranslations('Invoices'); 
 
   const [invoices, setInvoices] = useState<DBInvoice[]>([]);
   const [activeLeases, setActiveLeases] = useState<ActiveLease[]>([]);
@@ -69,6 +69,11 @@ export default function InvoicesPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<number | null>(null);
 
+  // New States for Bulk Action Operations
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<number[]>([]);
+  const [invoicesToPrint, setInvoicesToPrint] = useState<DBInvoice[]>([]);
+  
+  
   const [formData, setFormData] = useState({
     leaseId: '',
     waterLastMonth: '',
@@ -90,7 +95,7 @@ export default function InvoicesPage() {
         fetch('/api/leases/active')
       ]);
       if (!invRes.ok || !leaseRes.ok){
-        return
+        return;
       } 
       setInvoices(await invRes.json());
       setActiveLeases(await leaseRes.json());
@@ -176,6 +181,7 @@ export default function InvoicesPage() {
       if (!response.ok) throw new Error('Failed to delete invoice');
       
       setInvoices(prev => prev.filter(inv => inv.id !== invoiceToDelete));
+      setSelectedInvoiceIds(prev => prev.filter(id => id !== invoiceToDelete));
       setInvoiceToDelete(null);
     } catch (error) {
       console.error(error);
@@ -183,8 +189,35 @@ export default function InvoicesPage() {
     }
   };
 
+  // Checkbox Select All Toggle
+  const handleSelectAllToggle = () => {
+    if (selectedInvoiceIds.length === invoices.length) {
+      setSelectedInvoiceIds([]);
+    } else {
+      setSelectedInvoiceIds(invoices.map(inv => inv.id));
+    }
+  };
+
+  // Row Level Checkbox Toggle
+  const handleSelectInvoiceToggle = (id: number) => {
+    setSelectedInvoiceIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  // Execution for Bulk Invoices Printing Sequential Buffer
+  const triggerBulkPrintSequence = () => {
+    const targets = invoices.filter(inv => selectedInvoiceIds.includes(inv.id));
+    if (targets.length === 0) return;
+    
+    setInvoicesToPrint(targets);
+    setTimeout(() => {
+      window.print();
+    }, 200);
+  };
+
   const triggerBrowserPrintSequence = (invoice: DBInvoice) => {
-    setSelectedInvoice(invoice);
+    setInvoicesToPrint([invoice]);
     setTimeout(() => {
       window.print();
     }, 150);
@@ -213,6 +246,75 @@ export default function InvoicesPage() {
     return { rent, water, electricity, grandTotal: rent + water + electricity };
   };
 
+  const handleShareInvoice = async (invoice: DBInvoice, platform?: 'telegram' | 'whatsapp' | 'messenger') => {
+    const { grandTotal, water = 0, electricity = 0 } = calculateTotals(invoice);
+    
+    const tenantName = invoice.lease?.tenant?.user?.name || t('unknownTenant');
+    const roomNum = invoice.lease?.room?.roomNumber || '';
+    const invoiceId = invoice.id;
+    
+    const formatDate = (date: any) => date ? new Date(date).toLocaleDateString() : '';
+    const invoiceDate = formatDate(invoice.createdAt);
+    const dueDate = formatDate(invoice.dueDate);
+    
+    const rentAmount = invoice.lease?.monthlyRent || 0;
+    
+    const shareText = `
+      ${t("RECEIPT")}        
+      ==============================
+      ${t("InvoiceNo")} : ${invoiceId}
+      ${t("date")}       : ${invoiceDate}
+      ${t("dueDate")}   : ${dueDate}
+      ------------------------------
+      ${t("tenantInfo")}
+      👤 ${tenantName.slice(0, 26)}
+      🚪 ${t("room")} ${roomNum.padEnd(21)}
+      📅 ${invoice.billingPeriod?.slice(0, 26) || ''}
+      ------------------------------
+      ${t("itemizedFees")}
+        ${t("baseRent").padEnd(15)} $${rentAmount}
+        ${t("waterSupply").padEnd(15)} $${water.toFixed(2).padStart(11)}
+        ${t("electricity").padEnd(15)} $${electricity.toFixed(2).padStart(11)}
+      ------------------------------
+      ${t("totalDue").padEnd(17)} $${grandTotal.toFixed(2).padStart(11)}
+      ==============================
+      ${t("thankYou")}
+    `;
+    const invoiceUrl = `${window.location.origin}/dashboard/invoices/${invoice.id}`;
+
+    if (platform === 'whatsapp') {
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText + '\n' + invoiceUrl)}`, '_blank');
+      return;
+    }
+    if (platform === 'telegram') {
+      window.open(`https://t.me/share/url?url=${encodeURIComponent(shareText)}`, '_blank');
+      return;
+    }
+    if (platform === 'messenger') {
+      window.open(`https://www.facebook.com/dialog/send?link=${encodeURIComponent(invoiceUrl)}&app_id=YOUR_FB_APP_ID&redirect_uri=${encodeURIComponent(window.location.origin)}`, '_blank');
+      return;
+    }
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Invoice #INV-${String(invoice.id).padStart(5, '0')}`,
+          text: shareText,
+          url: invoiceUrl,
+        });
+      } catch (err) {
+        console.log('Native share canceled or failed:', err);
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n${invoiceUrl}`);
+        alert('Invoice link and summary copied to clipboard!');
+      } catch (err) {
+        console.error('Failed to copy text: ', err);
+      }
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -236,88 +338,98 @@ export default function InvoicesPage() {
             <p className="text-muted-foreground mt-0.5">{t('subtitle')}</p>
           </div>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="font-semibold">
-                <Plus className="w-4 h-4 mr-1.5 stroke-[2.5]" />
-                {t('createInvoiceBtn')}
+          <div className="flex items-center gap-2">
+            {/* Conditional "Print Selected" Action Trigger bar */}
+            {selectedInvoiceIds.length > 0 && (
+              <Button variant="outline" onClick={triggerBulkPrintSequence} className="font-semibold border-primary/40 text-primary hover:bg-primary/5 transition-all">
+                <Printer className="w-4 h-4 mr-1.5 stroke-[2.5]" />
+                {t('printSelectedBtn') || `Print Selected (${selectedInvoiceIds.length})`}
               </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{t('dialogTitle')}</DialogTitle>
-              </DialogHeader>
-            <form onSubmit={handleCreateInvoice} className="space-y-4 pt-2">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-muted-foreground">{t('labelSelectTenant')}</label>
-                <select name="leaseId" value={formData.leaseId} onChange={handleInputChange} className="w-full h-10 px-3 py-2 border rounded-md bg-background focus:outline-none text-sm" required>
-                  <option value="">-- {t('chooseTenantPlaceholder')} --</option>
-                  {activeLeases.map((lease) => (
-                    <option key={lease.id} value={lease.id}>
-                      {lease.tenant?.user?.name || 'Unknown Tenant'} ({t('roomShort')} {lease.room?.roomNumber})
-                    </option>
-                  ))}
-                </select>
-              </div>
+            )}
 
-              {selectedLeaseDetails && (
-                <div className="bg-muted/40 p-3 rounded-lg text-sm grid grid-cols-2 gap-2 border">
-                  <div><span className="text-muted-foreground">{t('tenant')}:</span> <strong className="block">{selectedLeaseDetails.tenant?.user?.name}</strong></div>
-                  <div><span className="text-muted-foreground">{t('room')}:</span> <strong className="block">{t('roomShort')} {selectedLeaseDetails.room?.roomNumber}</strong></div>
-                </div>
-              )}
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="font-semibold">
+                  <Plus className="w-4 h-4 mr-1.5 stroke-[2.5]" />
+                  {t('createInvoiceBtn')}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{t('dialogTitle')}</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleCreateInvoice} className="space-y-4 pt-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground">{t('labelSelectTenant')}</label>
+                    <select name="leaseId" value={formData.leaseId} onChange={handleInputChange} className="w-full h-10 px-3 py-2 border rounded-md bg-background focus:outline-none text-sm" required>
+                      <option value="">-- {t('chooseTenantPlaceholder')} --</option>
+                      {activeLeases.map((lease) => (
+                        <option key={lease.id} value={lease.id}>
+                          {lease.tenant?.user?.name || 'Unknown Tenant'} ({t('roomShort')} {lease.room?.roomNumber})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              {/* Billing & Due Date */}
-              <div className="grid grid-cols-2 gap-4 border-t pt-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">{t('placeholderBillingPeriod')}</label>
-                  <Input name="billingPeriod" placeholder={t('placeholderBillingPeriod')} value={formData.billingPeriod} onChange={handleInputChange} required />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">{t('dueDate')}</label>
-                  <Input name="dueDate" type="date" value={formData.dueDate} onChange={handleInputChange} required />
-                </div>
-              </div>
+                  {selectedLeaseDetails && (
+                    <div className="bg-muted/40 p-3 rounded-lg text-sm grid grid-cols-2 gap-2 border">
+                      <div><span className="text-muted-foreground">{t('tenant')}:</span> <strong className="block">{selectedLeaseDetails.tenant?.user?.name}</strong></div>
+                      <div><span className="text-muted-foreground">{t('room')}:</span> <strong className="block">{t('roomShort')} {selectedLeaseDetails.room?.roomNumber}</strong></div>
+                    </div>
+                  )}
 
-              {/* Water Section */}
-              <div className="grid grid-cols-3 gap-4 border-t pt-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">{t('waterLast')}</label>
-                  <Input name="waterLastMonth" type="number" placeholder={t('waterLast')} value={formData.waterLastMonth} onChange={handleInputChange} required />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">{t('waterThis')}</label>
-                  <Input name="waterThisMonth" type="number" placeholder={t('waterThis')} value={formData.waterThisMonth} onChange={handleInputChange} required />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">{t('waterRate')}</label>
-                  <Input name="waterRate" type="number" step="0.01" value={formData.waterRate} onChange={handleInputChange} required />
-                </div>
-              </div>
+                  {/* Billing & Due Date */}
+                  <div className="grid grid-cols-2 gap-4 border-t pt-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">{t('placeholderBillingPeriod')}</label>
+                      <Input name="billingPeriod" placeholder={t('placeholderBillingPeriod')} value={formData.billingPeriod} onChange={handleInputChange} required />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">{t('dueDate')}</label>
+                      <Input name="dueDate" type="date" value={formData.dueDate} onChange={handleInputChange} required />
+                    </div>
+                  </div>
 
-              {/* Electricity Section */}
-              <div className="grid grid-cols-3 gap-4 border-t pt-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">{t('electricLast')}</label>
-                  <Input name="electricityLastMonth" type="number" placeholder={t('electricLast')} value={formData.electricityLastMonth} onChange={handleInputChange} required />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">{t('electricThis')}</label>
-                  <Input name="electricityThisMonth" type="number" placeholder={t('electricThis')} value={formData.electricityThisMonth} onChange={handleInputChange} required />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-muted-foreground">{t('electricityRate')}</label>
-                  <Input name="electricityRate" type="number" step="0.01" value={formData.electricityRate} onChange={handleInputChange} required />
-                </div>
-              </div>
+                  {/* Water Section */}
+                  <div className="grid grid-cols-3 gap-4 border-t pt-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">{t('waterLast')}</label>
+                      <Input name="waterLastMonth" type="number" placeholder={t('waterLast')} value={formData.waterLastMonth} onChange={handleInputChange} required />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">{t('waterThis')}</label>
+                      <Input name="waterThisMonth" type="number" placeholder={t('waterThis')} value={formData.waterThisMonth} onChange={handleInputChange} required />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">{t('waterRate')} ??</label>
+                      <Input name="waterRate" type="number" step="0.01" value={formData.waterRate} onChange={handleInputChange} required />
+                    </div>
+                  </div>
 
-              <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>{t('cancel')}</Button>
-                <Button type="submit" disabled={isSubmitting}>{t('generateInvoiceBtn')}</Button>
-              </div>
-            </form>
-            </DialogContent>
-          </Dialog>
+                  {/* Electricity Section */}
+                  <div className="grid grid-cols-3 gap-4 border-t pt-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">{t('electricLast')}</label>
+                      <Input name="electricityLastMonth" type="number" placeholder={t('electricLast')} value={formData.electricityLastMonth} onChange={handleInputChange} required />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">{t('electricThis')}</label>
+                      <Input name="electricityThisMonth" type="number" placeholder={t('electricThis')} value={formData.electricityThisMonth} onChange={handleInputChange} required />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">{t('electricityRate')}</label>
+                      <Input name="electricityRate" type="number" step="0.01" value={formData.electricityRate} onChange={handleInputChange} required />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-4 border-t">
+                    <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>{t('cancel')}</Button>
+                    <Button type="submit" disabled={isSubmitting}>{t('generateInvoiceBtn')}</Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {/* Live Ledger Data Table Grid */}
@@ -333,6 +445,14 @@ export default function InvoicesPage() {
                 <table className="w-full text-sm text-left">
                   <thead className="text-xs uppercase bg-muted/60 border-b text-muted-foreground font-semibold tracking-wider">
                     <tr>
+                      <th className="px-4 py-4 w-10 text-center">
+                        <input 
+                          type="checkbox"
+                          className="rounded border-gray-300 accent-primary cursor-pointer w-4 h-4"
+                          checked={invoices.length > 0 && selectedInvoiceIds.length === invoices.length}
+                          onChange={handleSelectAllToggle}
+                        />
+                      </th>
                       <th className="px-6 py-4">{t('thInvoiceId')}</th>
                       <th className="px-6 py-4">{t('thTenant')}</th>
                       <th className="px-6 py-4">{t('thPeriod')}</th>
@@ -344,8 +464,17 @@ export default function InvoicesPage() {
                   <tbody className="divide-y bg-card text-foreground">
                     {invoices.map((invoice) => {
                       const { grandTotal } = calculateTotals(invoice);
+                      const isChecked = selectedInvoiceIds.includes(invoice.id);
                       return (
-                        <tr key={invoice.id} className="hover:bg-muted/10 transition-colors group">
+                        <tr key={invoice.id} className={`hover:bg-muted/10 transition-colors group ${isChecked ? 'bg-primary/5 hover:bg-primary/10' : ''}`}>
+                          <td className="px-4 py-4 text-center">
+                            <input 
+                              type="checkbox"
+                              className="rounded border-gray-300 accent-primary cursor-pointer w-4 h-4"
+                              checked={isChecked}
+                              onChange={() => handleSelectInvoiceToggle(invoice.id)}
+                            />
+                          </td>
                           <td className="px-6 py-4 font-mono font-bold text-xs text-primary">
                             #INV-{String(invoice.id).padStart(5, '0')}
                           </td>
@@ -379,6 +508,24 @@ export default function InvoicesPage() {
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => triggerBrowserPrintSequence(invoice)}>
                               <Printer className="w-4 h-4" />
                             </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground">
+                                  <Share2 className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-44">
+                                <DropdownMenuItem className="text-xs gap-2" onClick={() => handleShareInvoice(invoice)}>
+                                  <Share2 className="w-3.5 h-3.5" /> {t('shareNative') || 'System Share'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="text-xs gap-2" onClick={() => handleShareInvoice(invoice, 'whatsapp')}>
+                                  <MessageSquare className="w-3.5 h-3.5 text-emerald-500" /> WhatsApp
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="text-xs gap-2" onClick={() => handleShareInvoice(invoice, 'telegram')}>
+                                  <Send className="w-3.5 h-3.5 text-sky-500" /> Telegram
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive transition-colors" onClick={() => setInvoiceToDelete(invoice.id)}>
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -489,81 +636,94 @@ export default function InvoicesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* HIGH-CONTRAST INVOICE PRINT VIEW */}
-      {selectedInvoice && (
-        <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:text-black z-50 p-12 bg-white text-black font-sans min-h-screen text-xs leading-relaxed">
-          <div className="flex justify-between items-start border-b-4 border-black pb-8">
-            <div className="space-y-1">
-              <h2 className="text-4xl font-black tracking-tight text-black uppercase">{t('printHeader')}</h2>
-              <p className="text-gray-600 font-mono text-sm tracking-widest">{t('serialId')}: #INV-{String(selectedInvoice.id).padStart(5, '0')}</p>
-            </div>
-            <div className="text-right space-y-0.5">
-              <strong className="text-base text-black block font-black uppercase tracking-wider">{t('companyName')}</strong>
-              <p className="text-gray-500 font-mono">billing@property-management.local</p>
-            </div>
-          </div>
+      {/* HIGH-CONTRAST INVOICE PRINT VIEW - Supporting Single and Multi Print maps */}
+      {invoicesToPrint.length > 0 && (
+        <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:text-black z-50 bg-white text-black font-sans min-h-screen text-xs leading-relaxed">
+          {invoicesToPrint.map((invoice, index) => {
+            const details = calculateTotals(invoice);
+            return (
+              <div 
+                key={invoice.id} 
+                className="p-12 min-h-screen flex flex-col justify-between"
+                style={{ breakAfter: index === invoicesToPrint.length - 1 ? 'auto' : 'page' }}
+              >
+                <div>
+                  <div className="flex justify-between items-start border-b-4 border-black pb-8">
+                    <div className="space-y-1">
+                      <h2 className="text-4xl font-black tracking-tight text-black uppercase">{t('printHeader')}</h2>
+                      <p className="text-gray-600 font-mono text-sm tracking-widest">{t('serialId')}: #INV-{String(invoice.id).padStart(5, '0')}</p>
+                    </div>
+                    <div className="text-right space-y-0.5">
+                      <strong className="text-base text-black block font-black uppercase tracking-wider">{t('companyName')}</strong>
+                      <p className="text-gray-500 font-mono">billing@property-management.local</p>
+                    </div>
+                  </div>
 
-          <div className="grid grid-cols-2 gap-12 my-10 bg-gray-100 p-6 rounded-lg border border-gray-300">
-            <div className="space-y-1.5">
-              <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">{t('printBillTo')}</span>
-              <strong className="text-lg text-black block font-black tracking-tight">{selectedInvoice.lease?.tenant?.user?.name}</strong>
-              <p className="text-gray-700 text-xs font-medium">{t('printAssignedRoom')}: <strong className="text-black font-bold">{t('roomShort')} {selectedInvoice.lease?.room?.roomNumber}</strong></p>
-            </div>
-            <div className="space-y-1.5 text-right">
-              <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">{t('printStatementSummary')}</span>
-              <p className="text-gray-700 text-xs">{t('printTargetCycle')}: <strong>{selectedInvoice.billingPeriod}</strong></p>
-              <p className="text-gray-700 text-xs">{t('thStatus')}: <strong>{t(`status_${selectedInvoice.status}`).toUpperCase()}</strong></p>
-              <p className="text-black font-black text-xs border-t border-gray-300 pt-1 mt-1 inline-block">{t('printDeadline')}: {new Date(selectedInvoice.dueDate).toLocaleDateString()}</p>
-            </div>
-          </div>
+                  <div className="grid grid-cols-2 gap-12 my-10 bg-gray-100 p-6 rounded-lg border border-gray-300">
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">{t('printBillTo')}</span>
+                      <strong className="text-lg text-black block font-black tracking-tight">{invoice.lease?.tenant?.user?.name}</strong>
+                      <p className="text-gray-700 text-xs font-medium">{t('printAssignedRoom')}: <strong className="text-black font-bold">{t('roomShort')} {invoice.lease?.room?.roomNumber}</strong></p>
+                    </div>
+                    <div className="space-y-1.5 text-right">
+                      <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">{t('printStatementSummary')}</span>
+                      <p className="text-gray-700 text-xs">{t('printTargetCycle')}: <strong>{invoice.billingPeriod}</strong></p>
+                      <p className="text-gray-700 text-xs">{t('thStatus')}: <strong>{t(`status_${invoice.status}`).toUpperCase()}</strong></p>
+                      <p className="text-black font-black text-xs border-t border-gray-300 pt-1 mt-1 inline-block">{t('printDeadline')}: {new Date(invoice.dueDate).toLocaleDateString()}</p>
+                    </div>
+                  </div>
 
-          <table className="w-full my-8 text-left border-collapse">
-            <thead>
-              <tr className="border-b-2 border-black text-[10px] uppercase text-black font-black tracking-wider">
-                <th className="py-2.5">{t('printThItems')}</th>
-                <th className="py-2.5 text-right">{t('printThMeter')}</th>
-                <th className="py-2.5 text-right">{t('printThConsumed')}</th>
-                <th className="py-2.5 text-right">{t('printThRate')}</th>
-                <th className="py-2.5 text-right">{t('printThSubtotal')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-300 text-gray-900 text-xs font-medium">
-              <tr>
-                <td className="py-4 font-bold text-black">{t('baseRoomRent')}</td>
-                <td className="py-4 text-right text-gray-400">--</td>
-                <td className="py-4 text-right">{t('printMonthCycle')}</td>
-                <td className="py-4 text-right">${activeDetails.rent.toFixed(2)}</td>
-                <td className="py-4 text-right font-bold text-black">${activeDetails.rent.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td className="py-4 font-bold text-black">{t('waterSupplyItem')}</td>
-                <td className="py-4 text-right text-gray-500 font-mono text-[11px]">({selectedInvoice.waterLastMonth} ➔ {selectedInvoice.waterThisMonth})</td>
-                <td className="py-4 text-right">{Math.max(0, selectedInvoice.waterThisMonth - selectedInvoice.waterLastMonth)} {t('printUnits')}</td>
-                <td className="py-4 text-right">${parseFloat(selectedInvoice.waterRate).toFixed(2)}</td>
-                <td className="py-4 text-right font-bold text-black">${activeDetails.water.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td className="py-4 font-bold text-black">{t('electricityEnergyItem')}</td>
-                <td className="py-4 text-right text-gray-500 font-mono text-[11px]">({selectedInvoice.electricityLastMonth} ➔ {selectedInvoice.electricityThisMonth})</td>
-                <td className="py-4 text-right">{Math.max(0, selectedInvoice.electricityThisMonth - selectedInvoice.electricityLastMonth)} kWh</td>
-                <td className="py-4 text-right">${parseFloat(selectedInvoice.electricityRate).toFixed(2)}</td>
-                <td className="py-4 text-right font-bold text-black">${activeDetails.electricity.toFixed(2)}</td>
-              </tr>
-            </tbody>
-          </table>
+                  <table className="w-full my-8 text-left border-collapse">
+                    <thead>
+                      <tr className="border-b-2 border-black text-[10px] uppercase text-black font-black tracking-wider">
+                        <th className="py-2.5">{t('printThItems')}</th>
+                        <th className="py-2.5 text-right">{t('printThMeter')}</th>
+                        <th className="py-2.5 text-right">{t('printThConsumed')}</th>
+                        <th className="py-2.5 text-right">{t('printThRate')}</th>
+                        <th className="py-2.5 text-right">{t('printThSubtotal')}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-300 text-gray-900 text-xs font-medium">
+                      <tr>
+                        <td className="py-4 font-bold text-black">{t('baseRoomRent')}</td>
+                        <td className="py-4 text-right text-gray-400">--</td>
+                        <td className="py-4 text-right">{t('printMonthCycle')}</td>
+                        <td className="py-4 text-right">${details.rent.toFixed(2)}</td>
+                        <td className="py-4 text-right font-bold text-black">${details.rent.toFixed(2)}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-4 font-bold text-black">{t('waterSupplyItem')}</td>
+                        <td className="py-4 text-right text-gray-500 font-mono text-[11px]">({invoice.waterLastMonth} ➔ {invoice.waterThisMonth})</td>
+                        <td className="py-4 text-right">{Math.max(0, invoice.waterThisMonth - invoice.waterLastMonth)} {t('printUnits')}</td>
+                        <td className="py-4 text-right">${parseFloat(invoice.waterRate).toFixed(2)}</td>
+                        <td className="py-4 text-right font-bold text-black">${details.water.toFixed(2)}</td>
+                      </tr>
+                      <tr>
+                        <td className="py-4 font-bold text-black">{t('electricityEnergyItem')}</td>
+                        <td className="py-4 text-right text-gray-500 font-mono text-[11px]">({invoice.electricityLastMonth} ➔ {invoice.electricityThisMonth})</td>
+                        <td className="py-4 text-right">{Math.max(0, invoice.electricityThisMonth - invoice.electricityLastMonth)} kWh</td>
+                        <td className="py-4 text-right">${parseFloat(invoice.electricityRate).toFixed(2)}</td>
+                        <td className="py-4 text-right font-bold text-black">${details.electricity.toFixed(2)}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
-          <div className="flex justify-end mt-12 border-t-4 border-black pt-6">
-            <div className="w-72 space-y-2 text-right">
-              <div className="flex justify-between text-xs text-gray-600 font-semibold">
-                <span>{t('printSubtotal')}:</span>
-                <span>${activeDetails.grandTotal.toFixed(2)}</span>
+                <div className="flex justify-end mt-12 border-t-4 border-black pt-6">
+                  <div className="w-72 space-y-2 text-right">
+                    <div className="flex justify-between text-xs text-gray-600 font-semibold">
+                      <span>{t('printSubtotal')}:</span>
+                      <span>${details.grandTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-xl font-black border-t-2 pt-3 border-black text-black">
+                      <span>{t('printTotalDue')}:</span>
+                      <span>${details.grandTotal.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between text-xl font-black border-t-2 pt-3 border-black text-black">
-                <span>{t('printTotalDue')}:</span>
-                <span>${activeDetails.grandTotal.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
+            );
+          })}
         </div>
       )}
     </DashboardLayout>

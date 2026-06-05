@@ -181,7 +181,21 @@
     "printSubtotal": "Calculated Net Subtotal",
     "printTotalDue": "TOTAL BALANCE DUE",
     "selectLeaseAlert": "Select a target lease context.",
-    "deleteErrorAlert": "Error dropping the asset row entry from the data table system."
+    "deleteErrorAlert": "Error dropping the asset row entry from the data table system.",
+    "shareNative": "Share via...",
+    "shareBtn": "Share Statement",
+    "RECEIPT": "RECEIPT",
+    "InvoiceNo": "Invoice No",
+    "thankYou": "Thank you for your prompt payment!",
+    "tenantInfo": "TENANT INFO:",
+    "itemizedFees": "ITEMIZED FEES:",
+    "baseRent": "Base Rent",
+    "waterSupply": "Water Supply",
+    "electricity": "Electricity",
+    "totalDue": "TOTAL DUE:",
+    "invoiceS": "INVOICE STATEMENT",
+    "date": "Date",
+    "printSelectedBtn": "Print Selected"
   },
   "dashboard": {
     "title": "Dashboard",
