@@ -1,19 +1,30 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/src/lib/db';
 import { payments } from '@/src/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { format } from 'date-fns';
 
+// 1. Explicitly type the asynchronous context for Next.js 15
+type RouteContext = {
+  params: Promise<{
+    id: string; // Matches the folder [id] name exactly
+  }>;
+};
+
+// 2. Swapped 'Request' to 'NextRequest' for modern Next.js environments
 export async function PATCH(
-  request: Request,
-  { params }: { params: { id?: string; paymentId?: string } }
+  request: NextRequest,
+  context: RouteContext
 ) {
   try {
     const body = await request.json();
     let { status } = body;
 
-    // 💡 FIX 1: Robust fallback parsing to protect against undefined parameters
-    const rawId = params.id || params.paymentId || request.url.split('/').pop()?.split('?')[0];
+    // 3. Await the Next.js 15 params promise
+    const resolvedParams = await context.params;
+
+    // 4. Robust fallback parsing using the clean resolved ID
+    const rawId = resolvedParams.id || request.url.split('/').pop()?.split('?')[0];
     const paymentId = rawId ? parseInt(rawId, 10) : NaN;
 
     if (isNaN(paymentId)) {
