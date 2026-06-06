@@ -117,6 +117,7 @@ export const tenants = pgTable('tenants', {
   phone: varchar('phone', { length: 20 }).notNull(),
   emergencyContact: varchar('emergency_contact', { length: 255 }),
   employmentVerification: boolean('employment_verification').default(false),
+  imageUrl: varchar('image_url', { length: 512 }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -148,6 +149,8 @@ export const payments = pgTable('payments', {
   leaseId: integer('lease_id')
     .notNull()
     .references(() => leases.id),
+  tenantId: integer('tenant_id')
+    .references(() => tenants.id),
   amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
   paymentDate: date('payment_date'),
   dueDate: date('due_date').notNull(),
@@ -198,9 +201,8 @@ export const inspections = pgTable('inspections', {
 
 export const documents = pgTable('documents', {
   id: serial('id').primaryKey(),
-  leaseId: integer('lease_id')
-    .notNull()
-    .references(() => leases.id),
+  tenantId: integer('tenant_id')
+    .references(() => tenants.id),
   documentType: varchar('document_type', { length: 100 }).notNull(),
   filePath: varchar('file_path', { length: 500 }).notNull(),
   uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
@@ -269,13 +271,7 @@ export const roomsRelations = relations(rooms, ({ one, many }) => ({
 }));
 
 
-export const tenantsRelations = relations(tenants, ({ one, many }) => ({
-  user: one(users, {
-    fields: [tenants.userId],
-    references: [users.id],
-  }),
-  leases: many(leases),
-}));
+
 
 export const leasesRelations = relations(leases, ({ one, many }) => ({
   room: one(rooms, {
@@ -326,16 +322,26 @@ export const inspectionsRelations = relations(
   })
 );
 
-export const documentsRelations = relations(documents, ({ one }) => ({
-  lease: one(leases, {
-    fields: [documents.leaseId],
-    references: [leases.id],
-  }),
-}));
-
 export const invoicesRelations = relations(invoices, ({ one }) => ({
   lease: one(leases, {
     fields: [invoices.leaseId],
     references: [leases.id],
+  }),
+}));
+
+
+export const tenantsRelations = relations(tenants, ({ one, many }) => ({
+  user: one(users, {
+    fields: [tenants.userId],
+    references: [users.id],
+  }),
+  leases: many(leases),
+  documents: many(documents), // <-- Enables the .with.documents relation block
+}));
+
+export const documentsRelations = relations(documents, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [documents.tenantId],
+    references: [tenants.id],
   }),
 }));

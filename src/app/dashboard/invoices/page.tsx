@@ -73,7 +73,14 @@ export default function InvoicesPage() {
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<number[]>([]);
   const [invoicesToPrint, setInvoicesToPrint] = useState<DBInvoice[]>([]);
   
-  
+  const [selectedMonth, setSelectedMonth] = useState("");
+
+  const filteredInvoices = invoices.filter((invoice) => {
+  if (!selectedMonth) return true;
+  return invoice.createdAt.startsWith(selectedMonth)
+  });
+
+
   const [formData, setFormData] = useState({
     leaseId: '',
     waterLastMonth: '',
@@ -191,10 +198,20 @@ export default function InvoicesPage() {
 
   // Checkbox Select All Toggle
   const handleSelectAllToggle = () => {
-    if (selectedInvoiceIds.length === invoices.length) {
-      setSelectedInvoiceIds([]);
+     const filteredIds = filteredInvoices.map((inv) => inv.id);
+
+    const allSelected =
+      filteredIds.length > 0 &&
+      filteredIds.every((id) => selectedInvoiceIds.includes(id));
+
+    if (allSelected) {
+      setSelectedInvoiceIds((prev) =>
+        prev.filter((id) => !filteredIds.includes(id))
+      );
     } else {
-      setSelectedInvoiceIds(invoices.map(inv => inv.id));
+      setSelectedInvoiceIds((prev) => [
+        ...new Set([...prev, ...filteredIds]),
+      ]);
     }
   };
 
@@ -337,7 +354,27 @@ export default function InvoicesPage() {
             <h1 className="text-3xl font-bold tracking-tight py-2">{t('title')}</h1>
             <p className="text-muted-foreground mt-0.5">{t('subtitle')}</p>
           </div>
+             <div className="flex items-end gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-muted-foreground">
+                  Billing Month
+                </label>
 
+                <Input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="w-[180px]"
+                />
+              </div>
+
+              <Button
+                variant="outline"
+                onClick={() => setSelectedMonth("")}
+              >
+                Clear
+              </Button>
+            </div>
           <div className="flex items-center gap-2">
             {/* Conditional "Print Selected" Action Trigger bar */}
             {selectedInvoiceIds.length > 0 && (
@@ -433,7 +470,7 @@ export default function InvoicesPage() {
         </div>
 
         {/* Live Ledger Data Table Grid */}
-        {invoices.length === 0 ? (
+        {filteredInvoices.length === 0 ? (
           <div className="border border-dashed rounded-xl p-16 text-center text-muted-foreground flex flex-col items-center justify-center gap-2 bg-card shadow-sm">
             <FileText className="w-10 h-10 text-muted-foreground/40" />
             <p className="text-base font-medium">{t('noInvoices')}</p>
@@ -462,7 +499,7 @@ export default function InvoicesPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y bg-card text-foreground">
-                    {invoices.map((invoice) => {
+                    {filteredInvoices.map((invoice) => {
                       const { grandTotal } = calculateTotals(invoice);
                       const isChecked = selectedInvoiceIds.includes(invoice.id);
                       return (
@@ -535,6 +572,17 @@ export default function InvoicesPage() {
                     })}
                   </tbody>
                 </table>
+               <div className="text-sm text-muted-foreground p-4">
+              Showing
+              <span className="mx-1 font-semibold">
+                {filteredInvoices.length}
+              </span>
+              of
+              <span className="mx-1 font-semibold">
+                {invoices.length}
+              </span>
+              invoices
+            </div>
               </div>
             </CardContent>
           </Card>

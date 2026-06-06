@@ -12,7 +12,7 @@ importers:
         specifier: ^1.11.2
         version: 1.11.2
       '@aws-sdk/client-s3':
-        specifier: ^3.1058.0
+        specifier: ^3.1059.0
         version: 3.1059.0
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1058.0

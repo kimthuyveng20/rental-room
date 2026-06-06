@@ -1,0 +1,2 @@
+ALTER TABLE "documents" ADD COLUMN "tenant_id" integer;--> statement-breakpoint
+ALTER TABLE "documents" ADD CONSTRAINT "documents_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE no action ON UPDATE no action;
