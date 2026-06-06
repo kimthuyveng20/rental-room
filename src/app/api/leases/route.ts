@@ -75,3 +75,45 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to establish lease agreement' }, { status: 500 });
   }
 }
+
+
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const leaseIdStr = searchParams.get('id');
+
+    if (!leaseIdStr) {
+      return NextResponse.json({ error: 'Missing lease identifier param' }, { status: 400 });
+    }
+
+    const leaseId = parseInt(leaseIdStr, 10);
+
+    // 1. Discover the targeted lease record to find out which room it occupies
+    const targetLease = await db.query.leases.findFirst({
+      where: (leases, { eq }) => eq(leases.id, leaseId),
+    });
+
+    if (!targetLease) {
+      return NextResponse.json({ error: 'Lease agreement record not found' }, { status: 404 });
+    }
+
+    // 2. Perform a safe multi-step operation inside a database transaction block
+    await db.transaction(async (tx) => {
+      // Step A: Revert the room status flag back to available
+      if (targetLease.roomId) {
+        await tx
+          .update(rooms)
+          .set({ status: 'available' })
+          .where(eq(rooms.id, targetLease.roomId));
+      }
+
+      // Step B: Permanently delete the primary lease row ledger log
+      await tx.delete(leases).where(eq(leases.id, leaseId));
+    });
+
+    return NextResponse.json({ success: true, message: 'Lease agreement successfully terminated and room released' });
+  } catch (error) {
+    console.error('DELETE_LEASE_ROUTE_ERROR:', error);
+    return NextResponse.json({ error: 'Failed to fully execute lease deletion sequence' }, { status: 500 });
+  }
+}

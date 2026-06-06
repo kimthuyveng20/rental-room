@@ -10,7 +10,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/src/components/ui/dialog';
 import {
   Form,
@@ -20,8 +19,18 @@ import {
   FormLabel,
   FormMessage,
 } from '@/src/components/ui/form';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/src/components/ui/alert-dialog";
 import { Textarea } from '@/src/components/ui/textarea';
-import { Plus, Edit2, MapPin, Loader2, AlertCircle, Home } from 'lucide-react';
+import { Plus, Edit2, MapPin, Loader2, AlertCircle, Home, Trash2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -50,7 +59,11 @@ export default function PropertiesPage() {
   const [open, setOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Dynamic client schema generation using local translations for error tracking messages
+  // Added control states to manage update target tracks
+  const [editTargetId, setEditTargetId] = useState<number | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deletingLoader, setDeletingLoader] = useState(false);
+
   const propertySchema = z.object({
     name: z.string().min(1, t('validation.nameRequired')),
     address: z.string().min(1, t('validation.addressRequired')),
@@ -64,14 +77,7 @@ export default function PropertiesPage() {
 
   const form = useForm<PropertyFormData>({
     resolver: zodResolver(propertySchema),
-    defaultValues: {
-      name: '',
-      address: '',
-      city: '',
-      state: '',
-      zipCode: '',
-      description: '',
-    },
+    defaultValues: { name: '', address: '', city: '', state: '', zipCode: '', description: '' },
   });
 
   const syncPropertiesMatrix = async () => {
@@ -92,11 +98,47 @@ export default function PropertiesPage() {
     syncPropertiesMatrix();
   }, []);
 
-  const onSubmit = async (data: PropertyFormData) => {
+  const handleDeleteExecute = async () => {
+    if (!deleteTargetId) return;
+    setDeletingLoader(true);
     setErrorMessage(null);
     try {
-      const response = await fetch('/api/properties', {
-        method: 'POST',
+      const res = await fetch(`/api/properties?id=${deleteTargetId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to remove property profile');
+      setDeleteTargetId(null);
+      await syncPropertiesMatrix();
+    } catch (err: any) {
+      setErrorMessage(err.message);
+    } finally {
+      setDeletingLoader(false);
+    }
+  };
+
+  // Triggers edit form mode and maps database records into form field controllers
+  const handleEditInit = (property: DBProperty) => {
+    setEditTargetId(property.id);
+    setErrorMessage(null);
+    form.reset({
+      name: property.name,
+      address: property.address,
+      city: property.city,
+      state: property.state,
+      zipCode: property.zip,
+      description: property.description || '',
+    });
+    setOpen(true);
+  };
+
+  const onSubmit = async (data: PropertyFormData) => {
+    setErrorMessage(null);
+    const isEditing = editTargetId !== null;
+    const url = isEditing ? `/api/properties?id=${editTargetId}` : '/api/properties';
+    const method = isEditing ? 'PUT' : 'POST';
+
+    try {
+      const response = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
@@ -106,7 +148,8 @@ export default function PropertiesPage() {
         throw new Error(errorBody.error || t('errors.serverRejected'));
       }
 
-      form.reset();
+      form.reset({ name: '', address: '', city: '', state: '', zipCode: '', description: '' });
+      setEditTargetId(null);
       setOpen(false);
       await syncPropertiesMatrix();
     } catch (error: any) {
@@ -137,15 +180,34 @@ export default function PropertiesPage() {
             <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
           </div>
 
-          <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) { form.reset(); setErrorMessage(null); } }}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="w-4 h-4" /> {t('addBtn')}
-              </Button>
-            </DialogTrigger>
+          <Button 
+            className="gap-2"
+            onClick={() => {
+              setEditTargetId(null);
+              form.reset({ name: '', address: '', city: '', state: '', zipCode: '', description: '' });
+              setErrorMessage(null);
+              setOpen(true);
+            }}
+          >
+            <Plus className="w-4 h-4" /> {t('addBtn')}
+          </Button>
+
+          <Dialog 
+            open={open} 
+            onOpenChange={(val) => { 
+              setOpen(val); 
+              if (!val) { 
+                form.reset({ name: '', address: '', city: '', state: '', zipCode: '', description: '' }); 
+                setEditTargetId(null);
+                setErrorMessage(null); 
+              } 
+            }}
+          >
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{t('form.title')}</DialogTitle>
+                <DialogTitle>
+                  {editTargetId !== null ? t('form.editTitle') || 'Update Property' : t('form.title')}
+                </DialogTitle>
               </DialogHeader>
 
               {errorMessage && (
@@ -252,7 +314,28 @@ export default function PropertiesPage() {
           </Dialog>
         </div>
 
-        {/* Standalone Fallback Banner */}
+        <AlertDialog open={deleteTargetId !== null} onOpenChange={(val) => !val && setDeleteTargetId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Property Portfolio?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you absolutely sure? Doing this will permanently delete this property listing along with all rooms linked inside its registry. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deletingLoader}>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={(e) => { e.preventDefault(); handleDeleteExecute(); }} 
+                className="bg-destructive hover:bg-destructive/90"
+                disabled={deletingLoader}
+              >
+                {deletingLoader ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                Remove Property
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {errorMessage && !open && (
           <div className="bg-destructive/15 text-destructive p-4 rounded-md text-sm flex items-center gap-2">
             <AlertCircle className="w-5 h-5 flex-shrink-0" />
@@ -267,7 +350,7 @@ export default function PropertiesPage() {
             <p>{t('noProperties')}</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
             {properties.map((property) => {
               const totalRoomsCalculated = property.rooms?.length || 0;
               const occupiedRoomsCalculated = property.rooms?.filter(r => r.status === 'occupied').length || 0;
@@ -277,28 +360,53 @@ export default function PropertiesPage() {
                 : 0;
 
               return (
-                <Card key={property.id} className="hover:shadow-md transition-shadow flex flex-col justify-between">
-                  <CardHeader>
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="truncate text-xl">{property.name}</CardTitle>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1 truncate">
-                          <MapPin className="w-3.5 h-3.5 shrink-0 text-muted-foreground/80" />
-                          <span className="truncate">
-                            {property.address}, {property.city}, {property.state} {property.zip}
-                          </span>
+                <Card key={property.id} className="hover:shadow-md transition-shadow h-full flex flex-col relative overflow-hidden group justify-between">
+                  <div>
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="truncate text-xl font-bold tracking-tight">{property.name}</CardTitle>
+                          
+                          {/* Dynamic wrapping alignment layer addressing the image_022f5a.png layout break bug */}
+                          <div className="flex items-start gap-1 text-sm text-muted-foreground mt-1.5">
+                            <MapPin className="w-3.5 h-3.5 shrink-0 text-muted-foreground/80 mt-0.5" />
+                            <span className="whitespace-normal break-words leading-tight flex-1">
+                              {property.address}, {property.city}, {property.state} {property.zip}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground opacity-55 group-hover:opacity-100 transition-opacity"
+                            onClick={() => handleEditInit(property)}
+                            title="Edit Property"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-55 group-hover:opacity-100 transition-opacity"
+                            onClick={() => setDeleteTargetId(property.id)}
+                            title="Delete Property"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0">
-                        <Edit2 className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <p className="text-sm text-muted-foreground line-clamp-2 min-h-10">
-                      {property.description || <span className="italic opacity-60 text-xs">{t('noDescription')}</span>}
-                    </p>
-                    
+                    </CardHeader>
+
+                    <CardContent className="pb-4">
+                      <p className="text-sm text-muted-foreground line-clamp-3">
+                        {property.description || <span className="italic opacity-50 text-xs">{t('noDescription')}</span>}
+                      </p>
+                    </CardContent>
+                  </div>
+
+                  <CardContent className="pt-0 mt-auto">
                     <div className="grid grid-cols-2 gap-2 pt-4 border-t border-muted">
                       <div>
                         <p className="text-2xl font-bold tracking-tight text-foreground">

@@ -4,19 +4,20 @@ import { invoices, payments } from '@/src/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { format } from 'date-fns';
 
+type RouteParams = {
+  params: Promise<{ id?: string; invoiceId?: string }>;
+};
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id?: string; invoiceId?: string } } // Accept both common directory names
+  { params }: RouteParams // Applied here
 ) {
   try {
     const { status } = await req.json();
-    
-    // 💡 ULTIMATE FALLBACK FIX: Extract from params OR look directly at the end of the URL string if params fail
-    const rawId = params.id || params.invoiceId || req.url.split('/').pop()?.split('?')[0];
+    const resolvedParams = await params;
+    const rawId = resolvedParams.id || resolvedParams.invoiceId || req.url.split('/').pop()?.split('?')[0];
     const invoiceId = rawId ? parseInt(rawId, 10) : NaN;
 
-    // Defend against NaN crashing the SQL compilation layer
     if (isNaN(invoiceId)) {
       return NextResponse.json({ 
         error: `Invalid URL Parameter parsing state. Received raw input: "${rawId}"` 
@@ -48,7 +49,7 @@ export async function PATCH(
           amount: updatedInvoice.grandTotal,
           dueDate: updatedInvoice.dueDate,
           paymentDate: format(new Date(), 'yyyy-MM-dd'),
-          status: 'paid', // Matches your enum definition tracking constraints
+          status: 'paid', 
           paymentMethod: 'Invoice Status Sync',
         });
       }

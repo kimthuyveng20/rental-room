@@ -10,7 +10,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/src/components/ui/dialog';
 import {
   Form,
@@ -27,14 +26,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/src/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/src/components/ui/alert-dialog";
 import { Input } from '@/src/components/ui/input';
 import { Textarea } from '@/src/components/ui/textarea';
-import { Plus, Calendar, FileText, Loader2 } from 'lucide-react';
+import { Plus, Calendar, FileText, Loader2, Trash2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { getTranslations } from 'next-intl/server';
 import { useTranslations } from 'next-intl';
 
 const leaseSchema = z.object({
@@ -67,17 +75,13 @@ export default function LeasesPage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
 
+  // Added control tracks to safely orchestrate lease purges
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deletingLoader, setDeletingLoader] = useState(false);
+
   const form = useForm<LeaseFormData>({
     resolver: zodResolver(leaseSchema),
-    defaultValues: {
-      roomId: '',
-      tenantId: '',
-      startDate: '',
-      endDate: '',
-      rentAmount: 0,
-      depositAmount: 0,
-      notes: '',
-    },
+    defaultValues: { roomId: '', tenantId: '', startDate: '', endDate: '', rentAmount: 0, depositAmount: 0, notes: '' },
   });
 
   const loadData = async () => {
@@ -85,9 +89,9 @@ export default function LeasesPage() {
       const response = await fetch('/api/leases');
       if (response.ok) {
         const data = await response.json();
-        setLeases(data.leases);
-        setRooms(data.rooms);
-        setTenants(data.tenants);
+        setLeases(data.leases || []);
+        setRooms(data.rooms || []);
+        setTenants(data.tenants || []);
       }
     } catch (error) {
       console.error('Initialization Error:', error);
@@ -100,6 +104,22 @@ export default function LeasesPage() {
     loadData();
   }, []);
 
+  const handleDeleteExecute = async () => {
+    if (!deleteTargetId) return;
+    setDeletingLoader(true);
+    try {
+      const res = await fetch(`/api/leases?id=${deleteTargetId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to cancel lease profile');
+      setDeleteTargetId(null);
+      await loadData(); // Reload listings to update state and reset rooms dropdown matrices
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setDeletingLoader(false);
+    }
+  };
+
   const onSubmit = async (data: LeaseFormData) => {
     try {
       const response = await fetch('/api/leases', {
@@ -109,9 +129,9 @@ export default function LeasesPage() {
       });
 
       if (response.ok) {
-        form.reset();
+        form.reset({ roomId: '', tenantId: '', startDate: '', endDate: '', rentAmount: 0, depositAmount: 0, notes: '' });
         setOpen(false);
-        await loadData(); // Reload both options and layout lists
+        await loadData();
       }
     } catch (error) {
       console.error('Error creating lease:', error);
@@ -134,251 +154,293 @@ export default function LeasesPage() {
     return days;
   };
 
- const t = useTranslations("Leases");
- 
-if (loading) {
+  const t = useTranslations("Leases");
+  
+  if (loading) {
+    return (
+      <DashboardLayout userRole="owner">
+        <div className="flex h-[50vh] flex-col items-center justify-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground text-sm">{t("syncing")}</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout userRole="owner">
-      <div className="flex h-[50vh] flex-col items-center justify-center gap-2">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-muted-foreground text-sm">{t("syncing")}</p>
-      </div>
-    </DashboardLayout>
-  );
-}
-
-return (
-  <DashboardLayout userRole="owner">
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold py-2">{t("title")}</h1>
-          <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
-        </div>
-        
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="w-4 h-4" /> {t("newLease")}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>{t("createTitle")}</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                
-                {/* Dynamic Selection Row */}
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="roomId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("roomLabel")}</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder={t("roomPlaceholder")} />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {rooms.map((room) => (
-                              <SelectItem key={room.id} value={room.id.toString()}>
-                                Room {room.roomNumber}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="tenantId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("tenantLabel")}</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder={t("tenantPlaceholder")} />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {tenants.map((tProfile) => (
-                              <SelectItem key={tProfile.id} value={tProfile.id.toString()}>
-                                {tProfile.user.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* Dates Row */}
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="startDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("startDate")}</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="endDate"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("endDate")}</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                {/* Financial Metrics Row */}
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="rentAmount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("monthlyRent") + " ($)"}</FormLabel>
-                        <FormControl>
-                          <Input type="number" placeholder={t("rentPlaceholder")} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="depositAmount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("depositLabel")}</FormLabel>
-                        <FormControl>
-                          <Input type="number" placeholder={t("depositPlaceholder")} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("notesLabel")}</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder={t("notesPlaceholder")} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? t("writingLedger") : t("createAuthenticate")}
-                </Button>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Leases List Rendering Section */}
-      <div className="space-y-4">
-        {leases.length === 0 ? (
-          <div className="text-center py-12 border rounded-lg bg-background">
-            <FileText className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
-            <p className="text-muted-foreground">{t("noLeases")}</p>
+      <div className="space-y-6">
+        {/* Header Block Section */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold py-2">{t("title")}</h1>
+            <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
           </div>
-        ) : (
-          leases.map((lease) => {
-            const daysRemaining = getDaysRemaining(lease.endDate);
-            const isExpiringSoon = lease.status === 'active' && daysRemaining > 0 && daysRemaining < 30;
-            
-            // Resolve dynamic string or key fallback for status badge formatting
-            const statusKey = isExpiringSoon ? 'expiringSoon' : lease.status;
+          
+          {/* Programmatically trigger modal while strictly ensuring safe clean default states initialization */}
+          <Button 
+            className="gap-2"
+            onClick={() => {
+              form.reset({ roomId: '', tenantId: '', startDate: '', endDate: '', rentAmount: 0, depositAmount: 0, notes: '' });
+              setOpen(true);
+            }}
+          >
+            <Plus className="w-4 h-4" /> {t("newLease")}
+          </Button>
 
-            return (
-              <Card key={lease.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="pt-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <div className="p-3 rounded-lg bg-muted">
-                          <FileText className="w-6 h-6 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold">
-                            {lease.tenant?.user?.name || t("unknownTenant")}
-                            <span className="text-muted-foreground text-sm ml-2">
-                              • Room {lease.room?.roomNumber || "N/A"}
-                            </span>
-                          </h3>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-4 h-4" />
-                              {format(new Date(lease.startDate), 'MMM dd, yyyy')} -{' '}
-                              {format(new Date(lease.endDate), 'MMM dd, yyyy')}
+          <Dialog 
+            open={open} 
+            onOpenChange={(val) => {
+              setOpen(val);
+              if (!val) form.reset({ roomId: '', tenantId: '', startDate: '', endDate: '', rentAmount: 0, depositAmount: 0, notes: '' });
+            }}
+          >
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>{t("createTitle")}</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="roomId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("roomLabel")}</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder={t("roomPlaceholder")} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {rooms.map((room) => (
+                                <SelectItem key={room.id} value={room.id.toString()}>
+                                  Room {room.roomNumber}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="tenantId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("tenantLabel")}</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder={t("tenantPlaceholder")} />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {tenants.map((tProfile) => (
+                                <SelectItem key={tProfile.id} value={tProfile.id.toString()}>
+                                  {tProfile.user.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="startDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("startDate")}</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="endDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("endDate")}</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="rentAmount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("monthlyRent") + " ($)"}</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder={t("rentPlaceholder")} {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="depositAmount"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t("depositLabel")}</FormLabel>
+                          <FormControl>
+                            <Input type="number" placeholder={t("depositPlaceholder")} {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t("notesLabel")}</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder={t("notesPlaceholder")} {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                    {form.formState.isSubmitting ? t("writingLedger") : t("createAuthenticate")}
+                  </Button>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Dynamic Deletion Modal Protection Overlay Box */}
+        <AlertDialog open={deleteTargetId !== null} onOpenChange={(val) => !val && setDeleteTargetId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Terminate Lease Agreement?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will completely purge this lease entry. The assigned room will be immediately returned to "available" status. This action cannot be reversed.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deletingLoader}>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={(e) => { e.preventDefault(); handleDeleteExecute(); }} 
+                className="bg-destructive hover:bg-destructive/90"
+                disabled={deletingLoader}
+              >
+                {deletingLoader ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
+                Remove Lease
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Leases Output Matrix Area */}
+        <div className="space-y-4">
+          {leases.length === 0 ? (
+            <div className="text-center py-12 border rounded-lg bg-background">
+              <FileText className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="text-muted-foreground">{t("noLeases")}</p>
+            </div>
+          ) : (
+            leases.map((lease) => {
+              const daysRemaining = getDaysRemaining(lease.endDate);
+              const isExpiringSoon = lease.status === 'active' && daysRemaining > 0 && daysRemaining < 30;
+              const statusKey = isExpiringSoon ? 'expiringSoon' : lease.status;
+
+              return (
+                <Card key={lease.id} className="hover:shadow-md transition-shadow relative group">
+                  <CardContent className="pt-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3">
+                          <div className="p-3 rounded-lg bg-muted">
+                            <FileText className="w-6 h-6 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold">
+                              {lease.tenant?.user?.name || t("unknownTenant")}
+                              <span className="text-muted-foreground text-sm ml-2">
+                                • Room {lease.room?.roomNumber || "N/A"}
+                              </span>
+                            </h3>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-4 h-4" />
+                                {format(new Date(lease.startDate), 'MMM dd, yyyy')} -{' '}
+                                {format(new Date(lease.endDate), 'MMM dd, yyyy')}
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex items-center gap-6 ml-4">
-                      <div className="text-right">
-                        <p className="font-semibold">${Number(lease.monthlyRent).toFixed(2)}</p>
-                        <p className="text-xs text-muted-foreground">{t("monthlyRent")}</p>
-                      </div>
+                      {/* Display Financial Data metrics + Delete Action Hooks directly on hover zone overlay */}
+                      <div className="flex items-center gap-6 ml-4">
+                        <div className="text-right">
+                          <p className="font-semibold">${Number(lease.monthlyRent).toFixed(2)}</p>
+                          <p className="text-xs text-muted-foreground">{t("monthlyRent")}</p>
+                        </div>
 
-                      <div className="text-right min-w-[100px]">
-                        {lease.status === 'active' && daysRemaining > 0 ? (
-                          <p className="text-sm font-medium text-green-600 mb-1">
-                            {daysRemaining} {t("daysLeft")}
-                          </p>
-                        ) : (
-                          <p className="text-sm font-medium text-destructive mb-1">
-                            {t("agreementFinished")}
-                          </p>
-                        )}
-                        <Badge className={getStatusColor(isExpiringSoon ? 'expiring-soon' : lease.status)}>
-                          {t(statusKey) || lease.status}
-                        </Badge>
+                        <div className="text-right min-w-[100px]">
+                          {lease.status === 'active' && daysRemaining > 0 ? (
+                            <p className="text-sm font-medium text-green-600 mb-1">
+                              {daysRemaining} {t("daysLeft")}
+                            </p>
+                          ) : (
+                            <p className="text-sm font-medium text-destructive mb-1">
+                              {t("agreementFinished")}
+                            </p>
+                          )}
+                          <Badge className={getStatusColor(isExpiringSoon ? 'expiring-soon' : lease.status)}>
+                            {t(statusKey) || lease.status}
+                          </Badge>
+                        </div>
+
+                        {/* Interactive Deletion Trigger Box Button */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => setDeleteTargetId(lease.id)}
+                          title="Delete Lease"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
-        )}
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </div>
       </div>
-    </div>
-  </DashboardLayout>
-)
+    </DashboardLayout>
+  );
 }
