@@ -4,7 +4,7 @@ services:
   postgres:
     image: postgres:16
 
-    container_name: pos_postgres
+    container_name: rental_room
 
     restart: unless-stopped
 
