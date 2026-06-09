@@ -51,9 +51,6 @@ jobs:
         run: |
           docker build -t ${{ secrets.DOCKER_USERNAME }}/nextjs-app:latest .
 
-      - name: Push Docker Image
-        run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/nextjs-app:latest
   deploy:
     needs: build
     runs-on: self-hosted
