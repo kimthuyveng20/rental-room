@@ -1,0 +1,39 @@
+name: Deploy Next.js App to EC2
+
+on:
+  push:
+    branches:
+      - main # Triggers deployment whenever you push to main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Navigate to application directory (create if it doesn't exist)
+            mkdir -p ~/app
+            cd ~/app
+
+            # If git tracking isn't set up on EC2 yet, clone or sync files
+            if [ ! -d ".git" ]; then
+              git clone https://github.com/${{ github.repository }}.git .
+            else
+              git pull origin main
+            fi
+
+            # Rebuild and restart the application stack seamlessly
+            docker-compose down
+            docker-compose up --build -d
+
+            # Optional: Run your database migrations here if applicable
+            # docker-compose exec -T web npx prisma db push
