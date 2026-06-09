@@ -16,7 +16,7 @@ RUN pnpm install --prod --frozen-lockfile
 # 4. Copy the built production bundle from the builder stage
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.js ./next.config.js 2>/dev/null || true
+COPY --from=builder /app/next.config.ts ./next.config.ts 2>/dev/null || true
 
 EXPOSE 5000
 
