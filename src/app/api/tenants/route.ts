@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/src/lib/db';
+import { getDb } from '@/src/lib/db';
 import { users, tenants, documents, leases } from '@/src/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function GET() {
+  const db = getDb();
   try {
     const tenantsList = await db.query.tenants.findMany({
       with: {
@@ -32,6 +33,7 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
+    const db = getDb();
     const body = await req.json();
     const { 
       id, // The tenant ID being edited
@@ -113,6 +115,7 @@ export async function PUT(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const db = getDb();
     const body = await req.json();
     const { 
       name, 
@@ -182,6 +185,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const db = getDb();
     const { searchParams } = new URL(req.url);
     const tenantIdStr = searchParams.get('id');
 

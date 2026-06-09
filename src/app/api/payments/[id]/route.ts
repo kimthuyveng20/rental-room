@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/src/lib/db';
+import { getDb } from '@/src/lib/db';
 import { payments } from '@/src/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { format } from 'date-fns';
@@ -17,6 +17,7 @@ export async function PATCH(
   context: RouteContext
 ) {
   try {
+    const db = getDb();
     const body = await request.json();
     let { status } = body;
 

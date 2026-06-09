@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/src/lib/db';
+import {  getDb } from '@/src/lib/db';
 import { payments } from '@/src/lib/db/schema';
 import { desc } from 'drizzle-orm';
 
 export async function GET() {
   try {
     // Queries payments ledger sorted dynamically by latest arrivals
+    const db = getDb();
     const data = await db.query.payments.findMany({
       orderBy: [desc(payments.createdAt)],
       with: {

@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/src/lib/db';
+import { getDb } from '@/src/lib/db';
 import { rooms } from '@/src/lib/db/schema';
+
 
 // GET: Fetch real synchronized rooms matching schema specifications
 export async function GET() {
   try {
+    const db = getDb();
     const roomsList = await db.query.rooms.findMany({
       with: {
         property: true,
@@ -39,6 +41,7 @@ export async function GET() {
 // POST: Add room safely using your exact database column keys
 export async function POST(req: Request) {
   try {
+    const db = getDb();
     const body = await req.json();
     const { propertyId, roomNumber, type, capacity, pricePerMonth, status, amenities } = body;
 

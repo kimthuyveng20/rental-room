@@ -4,7 +4,8 @@ import { compare } from "bcryptjs";
 import { eq } from "drizzle-orm";
 
 import { users } from "@/src/lib/db/schema";
-import { db } from "./db"; // Adjust this path to your actual db client location
+import { getDb } from "./db";
+
 
 // Module Augmentation to make TypeScript aware of custom fields
 declare module "next-auth" {
@@ -43,7 +44,7 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Missing email or password");
         }
-
+        const db = getDb();
         // 1. Fetch user safely
         const user = await db.query.users.findFirst({
           where: eq(users.email, credentials.email),

@@ -1,8 +1,9 @@
+import { getDb } from '@/src/lib/db';
 import { NextResponse } from 'next/server';
-import { db } from '@/src/lib/db';
 
 export async function GET() {
   try {
+    const db = getDb();
     const activeLeases = await db.query.leases.findMany({
       where: (leases, { eq }) => eq(leases.status, 'active'),
       with: {

@@ -1,12 +1,13 @@
 import { rooms } from '@/src/lib/db/schema'; // Ensure this is imported at the top of route.ts
 import { NextResponse } from 'next/server';
-import { db } from '@/src/lib/db';
+import { getDb } from '@/src/lib/db';
 import { leases } from '@/src/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function GET() {
   try {
     // 1. Fetch current leases with their related room and user data
+    const db = getDb();
     const activeLeases = await db.query.leases.findMany({
       with: {
         room: true,
@@ -40,6 +41,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const db = getDb();
     const body = await req.json();
     const { roomId, tenantId, startDate, endDate, rentAmount, depositAmount } = body;
 
@@ -79,6 +81,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const db = getDb();
     const { searchParams } = new URL(req.url);
     const leaseIdStr = searchParams.get('id');
 

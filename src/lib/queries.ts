@@ -1,8 +1,9 @@
-import { db } from '@/src/lib/db'; // Path to your drizzle db initialization
+import { getDb } from '@/src/lib/db'; // Path to your drizzle db initialization
 import { properties, rooms, tenants, payments, maintenanceRequests, leases, users } from '@/src/lib/db/schema';
 import { eq, and, sql, desc } from 'drizzle-orm';
 
 export async function getDashboardStats() {
+  const db = getDb();
   // 1. Total Properties
   const [propertyCount] = await db.select({ count: sql<number>`count(*)` }).from(properties);
 
@@ -34,6 +35,7 @@ export async function getDashboardStats() {
 }
 
 export async function getRecentPayments() {
+    const db = getDb();
   return await db
     .select({
       id: payments.id,
@@ -53,6 +55,7 @@ export async function getRecentPayments() {
 }
 
 export async function getMaintenanceRequests() {
+    const db = getDb();
   return await db
     .select({
       id: maintenanceRequests.id,

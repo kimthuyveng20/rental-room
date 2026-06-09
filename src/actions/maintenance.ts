@@ -3,10 +3,12 @@
 import { eq, desc } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { maintenanceRequests, rooms } from '../lib/db/schema';
-import { db } from '../lib/db';
+import { getDb } from '../lib/db';
 
 // Query to fetch all requests with room numbers mapped correctly
+
 export async function getMaintenanceData() {
+  const db = getDb();
   return await db
     .select({
       id: maintenanceRequests.id,
@@ -33,6 +35,7 @@ export async function createMaintenanceRequest(formData: {
   description?: string;
 }) {
   // Find the internal roomId based on user-entered string roomNumber
+  const db = getDb();
   const [matchedRoom] = await db
     .select()
     .from(rooms)

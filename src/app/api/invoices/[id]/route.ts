@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/src/lib/db';
+import {  getDb } from '@/src/lib/db';
 import { invoices, payments } from '@/src/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { format } from 'date-fns';
@@ -13,6 +13,7 @@ export async function PATCH(
   { params }: RouteParams // Applied here
 ) {
   try {
+    const db = getDb();
     const { status } = await req.json();
     const resolvedParams = await params;
     const rawId = resolvedParams.id || resolvedParams.invoiceId || req.url.split('/').pop()?.split('?')[0];

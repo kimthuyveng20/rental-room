@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/src/lib/db';
+import {  getDb } from '@/src/lib/db';
 import { properties, rooms } from '@/src/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 // GET: Fetch all properties along with their rooms
 export async function GET() {
   try {
+    const db = getDb();
     const dataMatrix = await db.query.properties.findMany({
       with: {
         rooms: true, 
@@ -23,6 +24,7 @@ export async function GET() {
 // POST: Safely write a new property record matching Drizzle specifications
 export async function POST(req: Request) {
   try {
+    const db = getDb();
     const body = await req.json();
     const { name, address, city, state, zipCode, description } = body;
 
@@ -56,6 +58,7 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const db = getDb();
     const { searchParams } = new URL(req.url);
     const propertyIdStr = searchParams.get('id');
 
@@ -93,6 +96,7 @@ export async function DELETE(req: Request) {
 
 export async function PUT(req: Request) {
   try {
+    const db = getDb();
     const { searchParams } = new URL(req.url);
     const propertyIdStr = searchParams.get('id');
 

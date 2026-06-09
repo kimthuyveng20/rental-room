@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { hash } from "bcryptjs";
 import { eq } from "drizzle-orm";
-import { db } from "@/src/lib/db"; // Adjust this to your actual DB client export path
 import { users } from "@/src/lib/db/schema";
+import { getDb } from "@/src/lib/db";
 
 export async function POST(req: Request) {
   try {
+    const db = getDb();
     const { email, password, fullName, role } = await req.json();
 
     // 1. Basic server-side validation

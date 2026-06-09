@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/src/lib/db';
+import {  getDb } from '@/src/lib/db';
 import { invoices } from '@/src/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function POST(req: Request) {
   try {
+    const db = getDb();
     const body = await req.json();
     const {
       leaseId,
@@ -77,6 +78,7 @@ export async function POST(req: Request) {
 export async function GET() {
  try {
   // We pass a configuration object to findMany to include nested relations
+  const db = getDb();
   const data = await db.query.invoices.findMany({
     with: {
       lease: {
