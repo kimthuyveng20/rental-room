@@ -1,21 +1,24 @@
-# --- Stage 1: Build Stage ---
-FROM node:20-alpine3.18 AS builder
+# --- Stage 2: Production Run Stage ---
+FROM node:20-alpine3.18 AS runner
 WORKDIR /app
 
-# 1. Install pnpm globally inside the container
+ENV NODE_ENV=production
+
+# 1. Install pnpm globally in the runner stage too
 RUN npm install -g pnpm
 
-# 2. Copy package.json AND your pnpm lockfile
+# 2. Copy your package files over
 COPY package.json pnpm-lock.yaml* ./
 
-# 3. Change "npm ci" to the correct pnpm command
-RUN pnpm install --frozen-lockfile
+# 3. FIX: Change "npm ci --omit=dev" to the correct pnpm production command
+RUN pnpm install --prod --frozen-lockfile
 
-# 4. Copy the rest of your source files
-COPY . .
+# 4. Copy the built production bundle from the builder stage
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/next.config.js ./next.config.js 2>/dev/null || true
 
-# 5. Copy the generated .env file from GitHub Actions
-COPY .env ./ 
+EXPOSE 5000
 
-# 6. Run the build
-RUN pnpm run build
+# 5. Start the application using pnpm
+CMD ["pnpm", "run", "start"]
