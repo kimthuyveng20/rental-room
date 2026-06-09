@@ -2,36 +2,20 @@
 FROM node:20-alpine3.18 AS builder
 WORKDIR /app
 
-# Copy dependency structures
-COPY package*.json ./
+# 1. Install pnpm globally inside the container
+RUN npm install -g pnpm
 
-# Install ALL dependencies (including devDependencies like Tailwind/PostCSS)
-RUN npm ci
+# 2. Copy package.json AND your pnpm lockfile
+COPY package.json pnpm-lock.yaml* ./
 
-# Copy the source code
+# 3. Change "npm ci" to the correct pnpm command
+RUN pnpm install --frozen-lockfile
+
+# 4. Copy the rest of your source files
 COPY . .
 
-# Build the Next.js application
-RUN npm run build
+# 5. Copy the generated .env file from GitHub Actions
+COPY .env ./ 
 
-# --- Stage 2: Production Run Stage ---
-FROM node:20-alpine3.18 AS runner
-WORKDIR /app
-
-# Set production context
-ENV NODE_ENV=production
-
-# Copy package info to handle production runner binaries
-COPY package*.json ./
-
-# Only install what's critical to run the app (ignores devDependencies)
-RUN npm ci --omit=dev
-
-# Copy the built production bundle and public assets from the builder stage
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.js ./next.config.js 2>/dev/null || true
-
-EXPOSE 3000
-
-CMD ["npm", "run", "start"]
+# 6. Run the build
+RUN pnpm run build
