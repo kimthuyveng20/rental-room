@@ -1,41 +1,69 @@
-name: Deploy to EC2
-
+name: Deploy Next.js application
 on:
   push:
     branches:
-      - main   # change to your production branch
-
+      - deploy-with-docker-ec2
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
+    steps: 
+      - name: Checkout Source
         uses: actions/checkout@v4
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            set -e
-            cd /home/ubuntu/rental-room-system
+      - name: Create .env file
+        run: |
+          echo "DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@${{ secrets.POSTGRES_HOST }}:5432/${{ secrets.POSTGRES_DB }}" >> .env
+          echo "SITE_URL=${{ secrets.SITE_URL }}" >> .env
 
-            echo "→ Pulling latest code"
-            git pull origin main
+      - name: Build docker image
+        run: docker build -t integrationninjas/nextjs-app .
 
-            echo "→ Installing dependencies"
-            pnpm install --frozen-lockfile
+      - name: Login to docker hub
+        run: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
 
-            echo "→ Running DB migrations"
-            pnpm db:migrate
+      - name: Publish image to docker hub
+        run: docker push integrationninjas/nextjs-app:latest
 
-            echo "→ Building app"
-            pnpm build
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    steps:
+      - name: Create Docker network
+        run: docker network create app-network || true
 
-            echo "→ Restarting PM2"
-            pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
+      - name: Start PostgreSQL container
+        run: |
+          docker rm -f postgres-container || true
+          docker run -d \
+            --name postgres-container \
+            --network app-network \
+            -e POSTGRES_USER=${{ secrets.POSTGRES_USER }} \
+            -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+            -e POSTGRES_DB=${{ secrets.POSTGRES_DB }} \
+            -v postgres-data:/var/lib/postgresql/data \
+            -p 5432:5432 \
+            postgres:16-alpine
 
-            echo "✓ Deployment complete"
+      - name: Wait for PostgreSQL to be ready
+        run: |
+          echo "Waiting for PostgreSQL..."
+          for i in {1..15}; do
+            docker exec postgres-container pg_isready -U ${{ secrets.POSTGRES_USER }} && break
+            echo "Attempt $i failed, retrying in 3s..."
+            sleep 3
+          done
+
+      - name: Pull image from docker hub
+        run: docker pull integrationninjas/nextjs-app:latest
+
+      - name: Delete old container
+        run: docker rm -f nextjs-app-container || true
+
+      - name: Run docker container
+        run: |
+          docker run -d -p 3000:3000 \
+            --name nextjs-app-container \
+            --network app-network \
+            -e DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@postgres-container:5432/${{ secrets.POSTGRES_DB }} \
+            -e SITE_URL=${{ secrets.SITE_URL }} \
+            integrationninjas/nextjs-app
