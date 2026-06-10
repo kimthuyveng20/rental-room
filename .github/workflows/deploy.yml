@@ -20,8 +20,8 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - run: |
-          docker build -t username/rental-room:latest .
-          docker push username/rental-room:latest
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/rental-room:latest .
+          docker push ${{ secrets.DOCKER_USERNAME }}/rental-room:latest
 
       - uses: appleboy/ssh-action@v1.0.3
         with:
@@ -29,7 +29,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            docker pull username/rental-room:latest
+            docker pull ${{ secrets.DOCKER_USERNAME }}/rental-room:latest
             docker stop rental-room || true
             docker rm rental-room || true
 
