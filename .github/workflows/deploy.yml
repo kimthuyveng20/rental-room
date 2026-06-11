@@ -54,14 +54,22 @@ jobs:
           key: ${{ secrets.AWS_EC2_SSH_KEY }}
           script: |
             cd /home/ubuntu/app
-            
-            # Create a localized environment variable file dynamically
+
+            # 1. Recreate your environment variables
             echo "DB_USER=${{ secrets.DB_USER }}" > .env
             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
             echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
             echo "DOCKER_HUB_USERNAME=${{ secrets.DOCKER_HUB_USERNAME }}" >> .env
 
-            # Pull latest built image and spin up stack cleanly
+            # 2. Pull the newest images
             sudo docker compose pull
-            sudo docker compose down
+
+            # 3. Forcefully shut down everything and wipe orphaned/stuck containers
+            sudo docker compose down --remove-orphans
+
+            # 4. Force-remove the exact container ID or name that was conflicting just in case
+            sudo docker rm -f rental_room_ui || true
+            sudo docker rm -f rental_room_db || true
+
+            # 5. Boot the stack back up cleanly
             sudo docker compose up -d
