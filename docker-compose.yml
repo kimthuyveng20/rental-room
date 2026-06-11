@@ -1,20 +1,24 @@
-version: "3.9"
-
 services:
   postgres:
     image: postgres:16
-
     container_name: rental_room
-
     restart: unless-stopped
-
     environment:
-      POSTGRES_USER: kimthuy
-      POSTGRES_PASSWORD: kimthuy1997
-      POSTGRES_DB: rental_room
-
+      POSTGRES_USER: ${DB_USER:-kimthuy}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-kimthuy1997}
+      POSTGRES_DB: ${DB_NAME:-rental_room}
     ports:
       - "5432:5432"
-
     volumes:
       - ./docker/postgres/data:/var/lib/postgresql/data
+
+  nextjs-ui:  # <--- THIS WAS MISSING!
+    image: ${DOCKER_HUB_USERNAME}/nextjs-api:latest
+    container_name: rental_room_ui
+    restart: unless-stopped
+    ports:
+      - "80:3000"  # Maps standard HTTP port 80 on AWS to Next.js port 3000
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-kimthuy}:${DB_PASSWORD:-kimthuy1997}@postgres:5432/${DB_NAME:-rental_room}
+    depends_on:
+      - postgres
