@@ -14,6 +14,16 @@ import {
   DialogTrigger,
 } from '@/src/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/src/components/ui/alert-dialog';
+import {
   Form,
   FormControl,
   FormField,
@@ -61,6 +71,10 @@ export default function RoomsPage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // States for delete tracking
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deletingLoader, setDeletingLoader] = useState(false);
 
   // Zod Client-Side Error Schema strings resolved dynamically via i18n hooks
   const roomSchema = z.object({
@@ -127,6 +141,32 @@ export default function RoomsPage() {
     }
   };
 
+  // Execution function linked directly to the confirmation button
+  const handleDeleteExecute = async () => {
+    if (!deleteTargetId) return;
+
+    setErrorMessage(null);
+    setDeletingLoader(true);
+
+    try {
+      const response = await fetch(`/api/rooms?id=${deleteTargetId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errPayload = await response.json();
+        throw new Error(errPayload.error || 'Failed to discard resource from database storage.');
+      }
+
+      setDeleteTargetId(null);
+      await syncDataStream();
+    } catch (error: any) {
+      setErrorMessage(error.message);
+    } finally {
+      setDeletingLoader(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'occupied': return 'bg-green-100 text-green-800 hover:bg-green-100';
@@ -151,7 +191,7 @@ export default function RoomsPage() {
     <DashboardLayout userRole="owner">
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <div >
+          <div>
             <h1 className="text-3xl font-bold py-2">{t('title')}</h1>
             <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
           </div>
@@ -300,6 +340,14 @@ export default function RoomsPage() {
           </Dialog>
         </div>
 
+        {/* Mutation Error Feedback Banner */}
+        {errorMessage && !open && (
+          <div className="bg-destructive/15 text-destructive p-4 rounded-md text-sm flex items-center gap-2 mb-4">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         {/* Database Grid Table Layout */}
         <Card>
           <CardContent className="pt-6">
@@ -362,7 +410,12 @@ export default function RoomsPage() {
                             </Badge>
                           </td>
                           <td className="py-3 px-4 text-center">
-                            <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-destructive hover:bg-destructive/10"
+                              onClick={() => setDeleteTargetId(room.id)}
+                            >
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           </td>
@@ -376,6 +429,30 @@ export default function RoomsPage() {
           </CardContent>
         </Card>
       </div>
+      
+      {/* Absolute Modal Context Layer for Room Discard Operations */}
+      <AlertDialog open={deleteTargetId !== null} onOpenChange={(val) => !val && setDeleteTargetId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('deleteTitle') || 'Delete Room Entry?'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('deleteDescription') || 'Are you absolutely sure? Doing this will permanently delete this specific room unit ledger configuration from the system registry. This action cannot be undone.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingLoader}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={(e) => { e.preventDefault(); handleDeleteExecute(); }} 
+              className="hover:bg-destructive/90 "
+              disabled={deletingLoader}
+            >
+              {deletingLoader ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              {t('deleteConfirmBtn') || 'Remove Room'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </DashboardLayout>
   );
 }

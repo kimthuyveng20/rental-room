@@ -1,5 +1,5 @@
 {
-  "id": "f256554b-5668-4ca8-9320-ca1d60b6a7a0",
+  "id": "a9540f24-0bf1-4ab9-8b1d-658c3e76caf3",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -14,11 +14,11 @@
           "primaryKey": true,
           "notNull": true
         },
-        "lease_id": {
-          "name": "lease_id",
+        "tenant_id": {
+          "name": "tenant_id",
           "type": "integer",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "document_type": {
           "name": "document_type",
@@ -42,12 +42,12 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "documents_lease_id_leases_id_fk": {
-          "name": "documents_lease_id_leases_id_fk",
+        "documents_tenant_id_tenants_id_fk": {
+          "name": "documents_tenant_id_tenants_id_fk",
           "tableFrom": "documents",
-          "tableTo": "leases",
+          "tableTo": "tenants",
           "columnsFrom": [
-            "lease_id"
+            "tenant_id"
           ],
           "columnsTo": [
             "id"
@@ -542,6 +542,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "amount": {
           "name": "amount",
           "type": "numeric(10, 2)",
@@ -597,6 +603,19 @@
           "tableTo": "leases",
           "columnsFrom": [
             "lease_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payments_tenant_id_tenants_id_fk": {
+          "name": "payments_tenant_id_tenants_id_fk",
+          "tableFrom": "payments",
+          "tableTo": "tenants",
+          "columnsFrom": [
+            "tenant_id"
           ],
           "columnsTo": [
             "id"
@@ -827,6 +846,12 @@
           "primaryKey": false,
           "notNull": false,
           "default": false
+        },
+        "image_url": {
+          "name": "image_url",
+          "type": "varchar(512)",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",

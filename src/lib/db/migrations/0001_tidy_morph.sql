@@ -1,1 +1,0 @@
-ALTER TABLE "tenants" ADD COLUMN "image_url" varchar(512);

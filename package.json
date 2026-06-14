@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx migrate.ts",
     "db:push": "drizzle-kit push",
     "build": "next build",
     "start": "next start -p 3001",
@@ -80,11 +80,13 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.7",
     "tailwindcss": "^4",
+    "tsx": "^4.22.4",
     "typescript": "^5"
   }
 }

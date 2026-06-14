@@ -62,6 +62,9 @@
   },
   "Room": {
     "title": "Rooms",
+    "deleteConfirmBtn":"Delete Permanently",
+    "deleteTitle":"Are you absolutely certain?",
+    "deleteDescription":"This permanent action removes this specific billing invoice row tracking matrix from database tables. It cannot be undone.",
     "validationPropertyId": "Please select a parent property asset",
     "validationRoomNumber": "Room/Suite allocation identifier is required",
     "validationType": "Room configuration layout type is required",

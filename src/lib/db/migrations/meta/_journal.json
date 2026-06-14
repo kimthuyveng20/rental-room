@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1780551739182,
-      "tag": "0000_shallow_lilandra",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1780735904311,
-      "tag": "0001_tidy_morph",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1780738392130,
-      "tag": "0002_true_monster_badoon",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1780738459399,
-      "tag": "0003_burly_puck",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1780738647597,
-      "tag": "0004_early_swordsman",
+      "when": 1781192689480,
+      "tag": "0000_unusual_victor_mancha",
       "breakpoints": true
     }
   ]
