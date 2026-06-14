@@ -19,9 +19,6 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Generate Prisma client ONLY if the prisma directory exists
-RUN if [ -d "prisma" ]; then pnpm prisma generate; fi
-
 RUN pnpm build
 
 # Stage 3: Minimal production runner
@@ -35,19 +32,24 @@ ENV HOSTNAME="0.0.0.0"
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy basic public assets
+# 1. Copy basic public web assets
 COPY --from=builder /app/public ./public
 
-# Safely verify and copy standalone build output
+# 2. Copy optimized Next.js standalone engine files
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# SAFE SOLUTION: Instead of crashing if prisma is missing, copy everything from builder 
-# except large source folders, or dynamically check if it exists.
+# 3. CRITICAL DRiZZLE FIX: Explicitly copy your runtime migration files
+COPY --from=builder /app/migrate.ts ./migrate.ts
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/src/lib/db/migrations ./src/lib/db/migrations
+
+# 4. Copy node modules & configurations needed for execution
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
 
 USER nextjs
 EXPOSE 3000
 
-# Execute database migrations automatically ONLY if Prisma exists, otherwise just boot the server
-CMD ["sh", "-c", "if [ -d 'prisma' ]; then npx prisma migrate deploy; fi && node server.js"]
+# Simply boot up the server. (We will handle migration triggers via docker compose exec)
+CMD ["node", "server.js"]
