@@ -17,6 +17,19 @@ import {
 import { Button } from '@/src/components/ui/button';
 import { useTranslations, useLocale } from 'next-intl'; // Import useLocale
 import { LanguageSwitcher } from './language-switcher';
+import { signOut } from 'next-auth/react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/src/components/ui/alert-dialog';
+
+import { Loader2 } from 'lucide-react';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -79,7 +92,8 @@ export function DashboardLayout({
   userRole = 'admin',
 }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   // 1. Hook to get the active locale (e.g., 'en' or 'km')
   const locale = useLocale(); 
   
@@ -91,6 +105,19 @@ export function DashboardLayout({
     item.roles.includes(userRole)
   );
 
+  const handleLogout = async () => {
+  try {
+    setLoggingOut(true);
+
+    await signOut({
+      callbackUrl: '/',
+    });
+  } catch (error) {
+    console.error('Logout failed:', error);
+  } finally {
+    setLoggingOut(false);
+  }
+};
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
@@ -138,19 +165,53 @@ export function DashboardLayout({
 
           {/* Logout */}
           <div className="p-4 border-t">
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-2"
-              onClick={() => {
-                // TODO: Implement logout
-              }}
-            >
-              <LogOut className="w-4 h-4" />
-              {commonT('logout')}
-            </Button>
-          </div>
+           <Button
+            variant="outline"
+            className="w-full justify-start gap-2"
+            onClick={() => setLogoutOpen(true)}
+          >
+            <LogOut className="w-4 h-4" />
+            {commonT('logout')}
+          </Button>
+            </div>
         </div>
       </aside>
+      <AlertDialog
+  open={logoutOpen}
+  onOpenChange={(val) => !loggingOut && setLogoutOpen(val)}
+>
+  <AlertDialogContent>
+    <AlertDialogHeader>
+      <AlertDialogTitle>
+        {commonT('logout')}
+      </AlertDialogTitle>
+
+      <AlertDialogDescription>
+        Are you sure you want to logout from your account?
+      </AlertDialogDescription>
+    </AlertDialogHeader>
+
+    <AlertDialogFooter>
+      <AlertDialogCancel disabled={loggingOut}>
+        Cancel
+      </AlertDialogCancel>
+
+      <AlertDialogAction
+        disabled={loggingOut}
+        onClick={(e) => {
+          e.preventDefault();
+          handleLogout();
+        }}
+      >
+        {loggingOut && (
+          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        )}
+
+        {commonT('logout')}
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  </AlertDialogContent>
+</AlertDialog>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">

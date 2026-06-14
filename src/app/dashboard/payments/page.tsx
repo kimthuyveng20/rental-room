@@ -1,9 +1,10 @@
 'use client';
 
+import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/src/components/dashboard-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
-import { Button } from '@/src/components/ui/button';
+import { Button, buttonVariants } from '@/src/components/ui/button';
 import { Badge } from '@/src/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/src/components/ui/tabs';
 import { 
@@ -22,9 +23,120 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/src/components/ui/alert-dialog";
-import { DollarSign, TrendingUp, AlertCircle, CheckCircle, Loader2, ChevronDown, Printer, Trash2 } from 'lucide-react';
+import { 
+  DollarSign, 
+  TrendingUp, 
+  AlertCircle, 
+  CheckCircle, 
+  Loader2, 
+  ChevronDown, 
+  Printer, 
+  Trash2,
+  ChevronLeftIcon,
+  ChevronRightIcon
+} from 'lucide-react';
+import { cn } from '@/src/lib/utils';
 import { format } from 'date-fns';
 import { useTranslations } from 'next-intl';
+
+/* ==========================================
+   shadcn/ui Pagination Internal Subcomponents
+   ========================================== */
+
+function Pagination({ className, ...props }: React.ComponentProps<'nav'>) {
+  return (
+    <nav
+      role="navigation"
+      aria-label="pagination"
+      data-slot="pagination"
+      className={cn('mx-auto flex w-full justify-center', className)}
+      {...props}
+    />
+  )
+}
+
+function PaginationContent({
+  className,
+  ...props
+}: React.ComponentProps<'ul'>) {
+  return (
+    <ul
+      data-slot="pagination-content"
+      className={cn('flex flex-row items-center gap-1', className)}
+      {...props}
+    />
+  )
+}
+
+function PaginationItem({ ...props }: React.ComponentProps<'li'>) {
+  return <li data-slot="pagination-item" {...props} />
+}
+
+type PaginationLinkProps = {
+  isActive?: boolean
+} & Pick<React.ComponentProps<typeof Button>, 'size'> &
+  React.ComponentProps<'a'>
+
+function PaginationLink({
+  className,
+  isActive,
+  size = 'icon',
+  ...props
+}: PaginationLinkProps) {
+  return (
+    <a
+      aria-current={isActive ? 'page' : undefined}
+      data-slot="pagination-link"
+      data-active={isActive}
+      className={cn(
+        buttonVariants({
+          variant: isActive ? 'outline' : 'ghost',
+          size,
+        }),
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+function PaginationPrevious({
+  className,
+  ...props
+}: React.ComponentProps<typeof PaginationLink>) {
+  return (
+    <PaginationLink
+      aria-label="Go to previous page"
+      size="default"
+      className={cn('gap-1 px-2.5 sm:pl-2.5 cursor-pointer', className)}
+      {...props}
+    >
+      <ChevronLeftIcon className="w-4 h-4" />
+      <span className="hidden sm:block">Previous</span>
+    </PaginationLink>
+  )
+}
+
+function PaginationNext({
+  className,
+  ...props
+}: React.ComponentProps<typeof PaginationLink>) {
+  return (
+    <PaginationLink
+      aria-label="Go to next page"
+      size="default"
+      className={cn('gap-1 px-2.5 sm:pr-2.5 cursor-pointer', className)}
+      {...props}
+    >
+      <span className="hidden sm:block">Next</span>
+      <ChevronRightIcon className="w-4 h-4" />
+    </PaginationLink>
+  )
+}
+
+/* ==========================================
+   Interfaces and Component Core
+   ========================================== */
 
 interface DBPayment {
   id: number;
@@ -46,6 +158,16 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedPaymentForPrint, setSelectedPaymentForPrint] = useState<DBPayment | null>(null);
   const [paymentToDelete, setPaymentToDelete] = useState<number | null>(null);
+
+  // Pagination states tracked independently per active view matrix
+  const [activeTab, setActiveTab] = useState<string>('all');
+  const [pageStates, setPageStates] = useState<Record<string, number>>({
+    all: 1,
+    completed: 1,
+    pending: 1,
+    overdue: 1,
+  });
+  const itemsPerPage = 5;
 
   const syncPaymentsLedger = async () => {
     try {
@@ -142,8 +264,7 @@ export default function PaymentsPage() {
     }
   };
 
-   const getTextStatus= (status: string) => {
-    console.log("Status", status)
+  const getTextStatus = (status: string) => {
     switch (status) {
       case 'paid': return "completed";
       case 'overdue': return "overdue";
@@ -162,67 +283,127 @@ export default function PaymentsPage() {
     );
   }
 
-  const renderPaymentsTable = (dataset: DBPayment[], includeOverdueColumn = false) => (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b text-muted-foreground font-semibold">
-            <th className="text-left py-3 px-4">{t('table.headers.tenant')}</th>
-            <th className="text-left py-3 px-4">{t('table.headers.room')}</th>
-            <th className="text-left py-3 px-4">{t('table.headers.amount')}</th>
-            <th className="text-left py-3 px-4">{t('table.headers.dueDate')}</th>
-            {!includeOverdueColumn ? <th className="text-left py-3 px-4">{t('table.headers.paidDate')}</th> : <th className="text-left py-3 px-4">{t('table.headers.overdueDuration')}</th>}
-            <th className="text-left py-3 px-4">{t('table.headers.status')}</th>
-            <th className="text-right py-3 px-4">{t('table.headers.actions')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {dataset.map((payment) => {
-            const daysOverdue = Math.max(0, Math.floor((new Date().getTime() - new Date(payment.dueDate).getTime()) / (1000 * 60 * 60 * 24)));
-            return (
-              <tr key={payment.id} className="border-b hover:bg-muted/40 transition-colors">
-                <td className="py-3 px-4 font-bold tracking-tight">{payment.lease?.tenant?.user?.name || t('table.unknownEntity')}</td>
-                <td className="py-3 px-4 font-medium text-muted-foreground">{t('table.roomFormat', { roomNumber: payment.lease?.room?.roomNumber || 'N/A' })}</td>
-                <td className="py-3 px-4 font-bold text-foreground">${parseFloat(payment.amount).toFixed(2)}</td>
-                <td className="py-3 px-4 text-muted-foreground">{format(new Date(payment.dueDate), 'MMM dd, yyyy')}</td>
-                {!includeOverdueColumn ? (
-                  <td className="py-3 px-4">{payment.paymentDate ? format(new Date(payment.paymentDate), 'MMM dd, yyyy') : '-'}</td>
-                ) : (
-                  <td className="py-3 px-4 text-rose-600 font-bold">{t('table.daysLate', { count: daysOverdue })}</td>
-                )}
-                
-                <td className="py-3 px-4">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className={`h-7 px-2.5 text-xs font-bold rounded-full border capitalize gap-1 ${getStatusColor(payment.status)}`}>
-                        {getStatusIcon(payment.status)}
-                        {t(`status.${getTextStatus(payment.status)}`)}
-                        <ChevronDown className="w-3 h-3 opacity-60" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-32">
-                      <DropdownMenuItem className="text-xs text-amber-600 font-semibold" onClick={() => updatePaymentStatus(payment.id, 'pending')}>{t('status.pending')}</DropdownMenuItem>
-                      <DropdownMenuItem className="text-xs text-emerald-600 font-semibold" onClick={() => updatePaymentStatus(payment.id, 'completed')}>{t('status.completed')}</DropdownMenuItem>
-                      <DropdownMenuItem className="text-xs text-rose-600 font-semibold" onClick={() => updatePaymentStatus(payment.id, 'overdue')}>{t('status.overdue')}</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </td>
+  const renderPaymentsTable = (dataset: DBPayment[], tabKey: string, includeOverdueColumn = false) => {
+    const currentTabActivePage = pageStates[tabKey] || 1;
+    const totalPages = Math.max(1, Math.ceil(dataset.length / itemsPerPage));
+    
+    // Slice raw context to render current chunk
+    const pagedDataset = dataset.slice(
+      (currentTabActivePage - 1) * itemsPerPage,
+      currentTabActivePage * itemsPerPage
+    );
 
-                <td className="py-3 px-4 text-right space-x-1">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => triggerBrowserPrintSequence(payment)}>
-                    <Printer className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setPaymentToDelete(payment.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </td>
+    const handlePageChange = (targetPage: number) => {
+      setPageStates(prev => ({ ...prev, [tabKey]: targetPage }));
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-muted-foreground font-semibold">
+                <th className="text-left py-3 px-4">{t('table.headers.tenant')}</th>
+                <th className="text-left py-3 px-4">{t('table.headers.room')}</th>
+                <th className="text-left py-3 px-4">{t('table.headers.amount')}</th>
+                <th className="text-left py-3 px-4">{t('table.headers.dueDate')}</th>
+                {!includeOverdueColumn ? <th className="text-left py-3 px-4">{t('table.headers.paidDate')}</th> : <th className="text-left py-3 px-4">{t('table.headers.overdueDuration')}</th>}
+                <th className="text-left py-3 px-4">{t('table.headers.status')}</th>
+                <th className="text-right py-3 px-4">{t('table.headers.actions')}</th>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+            </thead>
+            <tbody>
+              {pagedDataset.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="text-center py-8 text-muted-foreground">
+                    No records found.
+                  </td>
+                </tr>
+              ) : (
+                pagedDataset.map((payment) => {
+                  const daysOverdue = Math.max(0, Math.floor((new Date().getTime() - new Date(payment.dueDate).getTime()) / (1000 * 60 * 60 * 24)));
+                  return (
+                    <tr key={payment.id} className="border-b hover:bg-muted/40 transition-colors">
+                      <td className="py-3 px-4 font-bold tracking-tight">{payment.lease?.tenant?.user?.name || t('table.unknownEntity')}</td>
+                      <td className="py-3 px-4 font-medium text-muted-foreground">{t('table.roomFormat', { roomNumber: payment.lease?.room?.roomNumber || 'N/A' })}</td>
+                      <td className="py-3 px-4 font-bold text-foreground">${parseFloat(payment.amount).toFixed(2)}</td>
+                      <td className="py-3 px-4 text-muted-foreground">{format(new Date(payment.dueDate), 'MMM dd, yyyy')}</td>
+                      {!includeOverdueColumn ? (
+                        <td className="py-3 px-4">{payment.paymentDate ? format(new Date(payment.paymentDate), 'MMM dd, yyyy') : '-'}</td>
+                      ) : (
+                        <td className="py-3 px-4 text-rose-600 font-bold">{t('table.daysLate', { count: daysOverdue })}</td>
+                      )}
+                      
+                      <td className="py-3 px-4">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className={`h-7 px-2.5 text-xs font-bold rounded-full border capitalize gap-1 ${getStatusColor(payment.status)}`}>
+                              {getStatusIcon(payment.status)}
+                              {t(`status.${getTextStatus(payment.status)}`)}
+                              <ChevronDown className="w-3 h-3 opacity-60" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-32">
+                            <DropdownMenuItem className="text-xs text-amber-600 font-semibold" onClick={() => updatePaymentStatus(payment.id, 'pending')}>{t('status.pending')}</DropdownMenuItem>
+                            <DropdownMenuItem className="text-xs text-emerald-600 font-semibold" onClick={() => updatePaymentStatus(payment.id, 'completed')}>{t('status.completed')}</DropdownMenuItem>
+                            <DropdownMenuItem className="text-xs text-rose-600 font-semibold" onClick={() => updatePaymentStatus(payment.id, 'overdue')}>{t('status.overdue')}</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
+
+                      <td className="py-3 px-4 text-right space-x-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => triggerBrowserPrintSequence(payment)}>
+                          <Printer className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setPaymentToDelete(payment.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Dynamic Pagination Control Overlay */}
+        {dataset.length > itemsPerPage && (
+          <div className="pt-2">
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => handlePageChange(Math.max(currentTabActivePage - 1, 1))}
+                    className={currentTabActivePage === 1 ? "pointer-events-none opacity-50" : ""}
+                  />
+                </PaginationItem>
+                
+                {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNumber) => (
+                  <PaginationItem key={pageNumber}>
+                    <PaginationLink
+                      className="cursor-pointer"
+                      isActive={pageNumber === currentTabActivePage}
+                      onClick={() => handlePageChange(pageNumber)}
+                    >
+                      {pageNumber}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => handlePageChange(Math.min(currentTabActivePage + 1, totalPages))}
+                    className={currentTabActivePage === totalPages ? "pointer-events-none opacity-50" : ""}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <DashboardLayout userRole="owner">
@@ -258,7 +439,7 @@ export default function PaymentsPage() {
         <Card className="shadow-sm border">
           <CardHeader><CardTitle>{t('matrixTitle')}</CardTitle></CardHeader>
           <CardContent>
-            <Tabs defaultValue="all" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList>
                 <TabsTrigger value="all">{t('tabs.all', { count: payments.length })}</TabsTrigger>
                 <TabsTrigger value="completed">{t('tabs.completed', { count: payments.filter(p => p.status === 'completed').length })}</TabsTrigger>
@@ -266,10 +447,18 @@ export default function PaymentsPage() {
                 <TabsTrigger value="overdue">{t('tabs.overdue', { count: payments.filter(p => p.status === 'overdue').length })}</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="all" className="mt-6">{renderPaymentsTable(payments)}</TabsContent>
-              <TabsContent value="completed" className="mt-6">{renderPaymentsTable(payments.filter(p => p.status === 'completed'))}</TabsContent>
-              <TabsContent value="pending" className="mt-6">{renderPaymentsTable(payments.filter(p => p.status === 'pending'))}</TabsContent>
-              <TabsContent value="overdue" className="mt-6">{renderPaymentsTable(payments.filter(p => p.status === 'overdue'), true)}</TabsContent>
+              <TabsContent value="all" className="mt-6">
+                {renderPaymentsTable(payments, 'all')}
+              </TabsContent>
+              <TabsContent value="completed" className="mt-6">
+                {renderPaymentsTable(payments.filter(p => p.status === 'completed'), 'completed')}
+              </TabsContent>
+              <TabsContent value="pending" className="mt-6">
+                {renderPaymentsTable(payments.filter(p => p.status === 'pending'), 'pending')}
+              </TabsContent>
+              <TabsContent value="overdue" className="mt-6">
+                {renderPaymentsTable(payments.filter(p => p.status === 'overdue'), 'overdue', true)}
+              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>

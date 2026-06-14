@@ -32,6 +32,16 @@ import {
 } from "@/src/components/ui/alert-dialog";
 import { useTranslations } from 'next-intl'; 
 import { Plus, FileText, Printer, Loader2, ChevronDown, Eye, Trash2, Calendar, User, Hash, Share2, MessageSquare, Send } from 'lucide-react';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/src/components/ui/pagination" 
+import React from 'react';
 
 interface ActiveLease {
   id: number;
@@ -81,6 +91,22 @@ export default function InvoicesPage() {
   });
 
 
+  const [currentPage, setCurrentPage] = React.useState(1);
+
+  const ITEMS_PER_PAGE = 10;
+
+  const totalPages = Math.ceil(
+    filteredInvoices.length / ITEMS_PER_PAGE
+  );
+
+  const paginatedInvoices = filteredInvoices.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedMonth]);
   const [formData, setFormData] = useState({
     leaseId: '',
     waterLastMonth: '',
@@ -198,7 +224,7 @@ export default function InvoicesPage() {
 
   // Checkbox Select All Toggle
   const handleSelectAllToggle = () => {
-     const filteredIds = filteredInvoices.map((inv) => inv.id);
+     const filteredIds = paginatedInvoices.map((inv) => inv.id);
 
     const allSelected =
       filteredIds.length > 0 &&
@@ -470,7 +496,7 @@ export default function InvoicesPage() {
         </div>
 
         {/* Live Ledger Data Table Grid */}
-        {filteredInvoices.length === 0 ? (
+        {paginatedInvoices.length === 0 ? (
           <div className="border border-dashed rounded-xl p-16 text-center text-muted-foreground flex flex-col items-center justify-center gap-2 bg-card shadow-sm">
             <FileText className="w-10 h-10 text-muted-foreground/40" />
             <p className="text-base font-medium">{t('noInvoices')}</p>
@@ -499,7 +525,7 @@ export default function InvoicesPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y bg-card text-foreground">
-                    {filteredInvoices.map((invoice) => {
+                    {paginatedInvoices.map((invoice) => {
                       const { grandTotal } = calculateTotals(invoice);
                       const isChecked = selectedInvoiceIds.includes(invoice.id);
                       return (
@@ -573,22 +599,78 @@ export default function InvoicesPage() {
                   </tbody>
                 </table>
                <div className="text-sm text-muted-foreground p-4">
-              Showing
-              <span className="mx-1 font-semibold">
-                {filteredInvoices.length}
-              </span>
-              of
-              <span className="mx-1 font-semibold">
-                {invoices.length}
-              </span>
-              invoices
-            </div>
+                Showing
+                <span className="mx-1 font-semibold">
+                  {(currentPage - 1) * ITEMS_PER_PAGE + 1}
+                </span>
+                -
+                <span className="mx-1 font-semibold">
+                  {Math.min(
+                    currentPage * ITEMS_PER_PAGE,
+                    filteredInvoices.length
+                  )}
+                </span>
+                of
+                <span className="mx-1 font-semibold">
+                  {filteredInvoices.length}
+                </span>
+                invoices
+              </div>
               </div>
             </CardContent>
           </Card>
         )}
       </div>
+      {totalPages > 1 && (
+        <Pagination className="mt-4">
+          <PaginationContent>
+            
+            {/* Previous Button */}
+            <PaginationItem>
+              <PaginationPrevious 
+                href="#" 
+                onClick={(e) => {
+                  e.preventDefault()
+                  if (currentPage > 1) setCurrentPage(currentPage - 1)
+                }}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
 
+            {/* Page Numbers mapping example */}
+            {[...Array(totalPages)].map((_, index) => {
+              const pageNumber = index + 1
+              return (
+                <PaginationItem key={pageNumber}>
+                  <PaginationLink 
+                    href="#"
+                    isActive={currentPage === pageNumber}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setCurrentPage(pageNumber)
+                    }}
+                  >
+                    {pageNumber}
+                  </PaginationLink>
+                </PaginationItem>
+              )
+            })}
+
+            {/* Next Button */}
+            <PaginationItem>
+              <PaginationNext 
+                href="#" 
+                onClick={(e) => {
+                  e.preventDefault()
+                  if (currentPage < totalPages) setCurrentPage(currentPage + 1)
+                }}
+                className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+              />
+            </PaginationItem>
+            
+          </PaginationContent>
+        </Pagination>
+      )}
       {/* DETAIL DRAWER SHEET */}
       <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto">

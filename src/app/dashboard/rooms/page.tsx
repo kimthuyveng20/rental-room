@@ -1,9 +1,23 @@
 'use client';
 
+import * as React from 'react';
 import { useState, useEffect } from 'react';
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  MoreHorizontalIcon,
+  Plus,
+  Trash2,
+  Loader2,
+  AlertCircle,
+  Building2,
+  Users,
+} from 'lucide-react';
+
+import { cn } from '@/src/lib/utils';
+import { Button, buttonVariants } from '@/src/components/ui/button';
 import { DashboardLayout } from '@/src/components/dashboard-layout';
 import { Card, CardContent } from '@/src/components/ui/card';
-import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Badge } from '@/src/components/ui/badge';
 import {
@@ -38,11 +52,123 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/src/components/ui/select';
-import { Plus, Trash2, Loader2, AlertCircle, Building2, Users } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useTranslations } from 'next-intl';
+
+/* ==========================================
+   shadcn/ui Pagination Internal Subcomponents
+   ========================================== */
+
+function Pagination({ className, ...props }: React.ComponentProps<'nav'>) {
+  return (
+    <nav
+      role="navigation"
+      aria-label="pagination"
+      data-slot="pagination"
+      className={cn('mx-auto flex w-full justify-center', className)}
+      {...props}
+    />
+  )
+}
+
+function PaginationContent({
+  className,
+  ...props
+}: React.ComponentProps<'ul'>) {
+  return (
+    <ul
+      data-slot="pagination-content"
+      className={cn('flex flex-row items-center gap-1', className)}
+      {...props}
+    />
+  )
+}
+
+function PaginationItem({ ...props }: React.ComponentProps<'li'>) {
+  return <li data-slot="pagination-item" {...props} />
+}
+
+type PaginationLinkProps = {
+  isActive?: boolean
+} & Pick<React.ComponentProps<typeof Button>, 'size'> &
+  React.ComponentProps<'a'>
+
+function PaginationLink({
+  className,
+  isActive,
+  size = 'icon',
+  ...props
+}: PaginationLinkProps) {
+  return (
+    <a
+      aria-current={isActive ? 'page' : undefined}
+      data-slot="pagination-link"
+      data-active={isActive}
+      className={cn(
+        buttonVariants({
+          variant: isActive ? 'outline' : 'ghost',
+          size,
+        }),
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+function PaginationPrevious({
+  className,
+  ...props
+}: React.ComponentProps<typeof PaginationLink>) {
+  return (
+    <PaginationLink
+      aria-label="Go to previous page"
+      size="default"
+      className={cn('gap-1 px-2.5 sm:pl-2.5 cursor-pointer', className)}
+      {...props}
+    >
+      <ChevronLeftIcon className="w-4 h-4" />
+      <span className="hidden sm:block">Previous</span>
+    </PaginationLink>
+  )
+}
+
+function PaginationNext({
+  className,
+  ...props
+}: React.ComponentProps<typeof PaginationLink>) {
+  return (
+    <PaginationLink
+      aria-label="Go to next page"
+      size="default"
+      className={cn('gap-1 px-2.5 sm:pr-2.5 cursor-pointer', className)}
+      {...props}
+    >
+      <span className="hidden sm:block">Next</span>
+      <ChevronRightIcon className="w-4 h-4" />
+    </PaginationLink>
+  )
+}
+
+function PaginationEllipsis({
+  className,
+  ...props
+}: React.ComponentProps<'span'>) {
+  return (
+    <span
+      aria-hidden
+      data-slot="pagination-ellipsis"
+      className={cn('flex size-9 items-center justify-center', className)}
+      {...props}
+    />
+  )
+}
+
+/* ==========================================
+   Interfaces and Modules Declarations
+   ========================================== */
 
 interface DBRoom {
   id: number;
@@ -72,11 +198,14 @@ export default function RoomsPage() {
   const [open, setOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Pagination Engine State Metrics
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const itemsPerPage = 5;
+
   // States for delete tracking
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [deletingLoader, setDeletingLoader] = useState(false);
 
-  // Zod Client-Side Error Schema strings resolved dynamically via i18n hooks
   const roomSchema = z.object({
     propertyId: z.string().min(1, t('validation.propertyId')),
     roomNumber: z.string().min(1, t('validation.roomNumber')),
@@ -119,6 +248,20 @@ export default function RoomsPage() {
     syncDataStream();
   }, []);
 
+  // Compute Client-Side Sliced Data Matrices
+  const totalPages = Math.max(1, Math.ceil(rooms.length / itemsPerPage));
+  const currentPagedRooms = rooms.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Auto-correct out-of-bounds pages if database mutations run
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [rooms, totalPages, currentPage]);
+
   const onSubmit = async (data: RoomFormData) => {
     setErrorMessage(null);
     try {
@@ -141,7 +284,6 @@ export default function RoomsPage() {
     }
   };
 
-  // Execution function linked directly to the confirmation button
   const handleDeleteExecute = async () => {
     if (!deleteTargetId) return;
 
@@ -169,9 +311,9 @@ export default function RoomsPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'occupied': return 'bg-green-100 text-green-800 hover:bg-green-100';
-      case 'available': return 'bg-blue-100 text-blue-800 hover:bg-blue-100';
-      case 'maintenance': return 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100';
+      case 'occupied': return 'bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400';
+      case 'available': return 'bg-blue-100 text-blue-800 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400';
+      case 'maintenance': return 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400';
       default: return 'bg-gray-100 text-gray-800 hover:bg-gray-100';
     }
   };
@@ -350,7 +492,7 @@ export default function RoomsPage() {
 
         {/* Database Grid Table Layout */}
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-6 space-y-4">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -365,14 +507,14 @@ export default function RoomsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rooms.length === 0 ? (
+                  {currentPagedRooms.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="text-center py-8 text-muted-foreground">
                         {t('noRooms')}
                       </td>
                     </tr>
                   ) : (
-                    rooms.map((room) => {
+                    currentPagedRooms.map((room) => {
                       const activeLeaseInstance = room.leases?.find(() => true); 
                       const occupantIdentityString = activeLeaseInstance?.tenant?.user?.name || null;
 
@@ -426,6 +568,41 @@ export default function RoomsPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Integration Module */}
+            {rooms.length > itemsPerPage && (
+              <div className="pt-2">
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious 
+                        onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                        className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                    
+                    {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNumber) => (
+                      <PaginationItem key={pageNumber}>
+                        <PaginationLink
+                          className="cursor-pointer"
+                          isActive={pageNumber === currentPage}
+                          onClick={() => setCurrentPage(pageNumber)}
+                        >
+                          {pageNumber}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+
+                    <PaginationItem>
+                      <PaginationNext 
+                        onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                        className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -443,7 +620,7 @@ export default function RoomsPage() {
             <AlertDialogCancel disabled={deletingLoader}>Cancel</AlertDialogCancel>
             <AlertDialogAction 
               onClick={(e) => { e.preventDefault(); handleDeleteExecute(); }} 
-              className="hover:bg-destructive/90 "
+              className="hover:bg-destructive/90"
               disabled={deletingLoader}
             >
               {deletingLoader ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
