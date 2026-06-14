@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/src/components/ui/alert-dialog';
-
+import Image from 'next/image';
 import { Loader2 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -126,21 +126,25 @@ export function DashboardLayout({
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="p-6 border-b space-y-4 flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-primary">RoomFlow</h1>
-              <p className="text-sm text-muted-foreground">
-                {commonT('propertyManagement')}
-              </p>
-            </div>
-            
-            {/* Language Switcher placement inside the sidebar header */}
-            <div className="mb-5">
+        <div className="flex justify-end">
               <LanguageSwitcher currentLocale={locale} />
             </div>
+        <div className="flex flex-col h-full">
+          {/* Logo */}
+          <div className="border-b space-y-4 flex items-center justify-center">
+              <div className="flex items-center">
+                <Image
+                  src="/rental-logo.svg"
+                  alt="Rental Room Logo"
+                  width={70}
+                  height={70}
+                  priority
+                />
+              </div>
+
+            {/* Language Switcher placement inside the sidebar header */}
           </div>
+            
 
           {/* Navigation */}
           <nav className="flex-1 p-4">
@@ -216,7 +220,7 @@ export function DashboardLayout({
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Bar */}
-        <header className="bg-card border-b px-6 py-4 flex items-center justify-between md:justify-end">
+        <header className="bg-card px-6 py-4 flex items-center justify-between md:justify-end">
           <Button
             variant="ghost"
             size="icon"
