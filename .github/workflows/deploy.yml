@@ -68,23 +68,20 @@ jobs:
           username: ${{ secrets.AWS_EC2_USER }}
           key: ${{ secrets.AWS_EC2_SSH_KEY }}
           script: |
-            cd /home/ubuntu/app
-
-            # 1. Recreate your environment variables
-            echo "DB_USER=${{ secrets.DB_USER }}" > .env
+            # 1. Create environment file
+            echo "DOCKER_HUB_USERNAME=${{ secrets.DOCKER_HUB_USERNAME }}" > .env
+            echo "DB_USER=${{ secrets.DB_USER }}" >> .env
             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
             echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
-            echo "DOCKER_HUB_USERNAME=${{ secrets.DOCKER_HUB_USERNAME }}" >> .env
-
-            # 2. Pull the newest images
-            sudo docker compose pull
-
-            # 3. Forcefully shut down everything and wipe orphaned/stuck containers
-            sudo docker compose down --remove-orphans
-
-            # 4. Force-remove the exact container ID or name that was conflicting just in case
-            sudo docker rm -f rental_room_ui || true
-            sudo docker rm -f rental_room_db || true
-
-            # 5. Boot the stack back up cleanly
-            sudo docker compose up -d
+            
+            # 2. Pull the newest Next.js image
+            docker-compose pull next-app
+            
+            # 3. STOP AND REMOVE OLD CONTAINERS FIRST (Fixes port conflict)
+            docker-compose down
+            
+            # 4. Start the fresh containers
+            docker-compose up -d --remove-orphans
+            
+            # 5. Run database migrations
+            docker-compose exec -T next-app npm run db:migrate
