@@ -49,7 +49,7 @@ export class S3Service {
         Key: uniqueFileName,
         Body: buffer,
         ContentType: contentType,
-        ACL: "public-read"
+        // 🚀 ACL removed here to fix the 'AccessControlListNotSupported' error
       })
     );
 
