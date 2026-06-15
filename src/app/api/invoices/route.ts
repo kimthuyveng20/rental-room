@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import {  getDb } from '@/src/lib/db';
 import { invoices } from '@/src/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { S3Service } from '@/src/lib/services/s3.service';
 
 export async function POST(req: Request) {
   try {
@@ -76,27 +77,67 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
- try {
-  // We pass a configuration object to findMany to include nested relations
-  const db = getDb();
-  const data = await db.query.invoices.findMany({
-    with: {
-      lease: {
-        with: {
-          tenant: {
-            with: {
-              user: true 
-            }
-          },
-          room: true 
-        }
-      }
-    }
-  });
+  try {
+    const db = getDb();
 
-  return NextResponse.json(data || []); 
-} catch (error) {
-  console.error("BACKEND_INVOICE_CRASH:", error);
-  return NextResponse.json({ error: "Failed to load invoices records matrix" }, { status: 500 });
-}
+    const invoices = await db.query.invoices.findMany({
+      with: {
+        lease: {
+          with: {
+            room: {
+              with: {
+                property: true,
+              },
+            },
+            tenant: {
+              with: {
+                user: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const s3Service = S3Service.getInstance();
+
+    const formattedData = await Promise.all(
+      invoices.map(async (invoice) => {
+        const khqrUrl =
+          invoice.lease?.room?.property?.khqrImageUrl;
+
+        let presignedKhqrUrl = null;
+
+        if (khqrUrl?.trim()) {
+          const key = s3Service.extractKeyFromUrl(khqrUrl);
+
+          presignedKhqrUrl =
+            await s3Service.getPresignedUrl(key);
+        }
+
+        return {
+          ...invoice,
+          lease: {
+            ...invoice.lease,
+            room: {
+              ...invoice.lease.room,
+              property: {
+                ...invoice.lease.room.property,
+                khqrImageUrl: presignedKhqrUrl,
+              },
+            },
+          },
+        };
+      })
+    );
+
+    return NextResponse.json(formattedData);
+  } catch (error) {
+    console.error('BACKEND_INVOICE_CRASH:', error);
+
+    return NextResponse.json(
+      { error: 'Failed to load invoices records matrix' },
+      { status: 500 }
+    );
+  }
 }

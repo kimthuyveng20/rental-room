@@ -49,6 +49,7 @@ interface DBProperty {
   state: string;
   zip: string;
   description: string | null;
+  khqrImageUrl?: string | null;
   rooms: DBRoomRelation[];
 }
 
@@ -63,6 +64,13 @@ export default function PropertiesPage() {
   const [editTargetId, setEditTargetId] = useState<number | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [deletingLoader, setDeletingLoader] = useState(false);
+  const [uploadingKhqr, setUploadingKhqr] = useState(false);
+  const [selectedKhqrFile, setSelectedKhqrFile] =
+  useState<File | null>(null);
+
+ const [khqrPreview, setKhqrPreview] =
+  useState<string>('');
+
 
   const propertySchema = z.object({
     name: z.string().min(1, t('validation.nameRequired')),
@@ -71,15 +79,39 @@ export default function PropertiesPage() {
     state: z.string().min(1, t('validation.stateRequired')),
     zipCode: z.string().min(1, t('validation.zipRequired')),
     description: z.string().optional(),
+    khqrImageUrl: z.string().optional(),
   });
 
   type PropertyFormData = z.infer<typeof propertySchema>;
 
   const form = useForm<PropertyFormData>({
     resolver: zodResolver(propertySchema),
-    defaultValues: { name: '', address: '', city: '', state: '', zipCode: '', description: '' },
+    defaultValues: { name: '', address: '', city: '', state: '', zipCode: '', description: '' , khqrImageUrl: '',},
   });
 
+  const uploadKhqr = async (
+  file: File
+): Promise<string> => {
+  const formData = new FormData();
+
+  formData.append('file', file);
+
+  const response = await fetch(
+    '/api/properties/upload-khqr',
+    {
+      method: 'POST',
+      body: formData,
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error('Failed to upload KHQR');
+  }
+
+  const result = await response.json();
+
+  return result.url;
+};
   const syncPropertiesMatrix = async () => {
     try {
       const response = await fetch('/api/properties');
@@ -119,6 +151,9 @@ export default function PropertiesPage() {
   const handleEditInit = (property: DBProperty) => {
     setEditTargetId(property.id);
     setErrorMessage(null);
+    setKhqrPreview(
+      property.khqrImageUrl || ''
+    );
     form.reset({
       name: property.name,
       address: property.address,
@@ -126,6 +161,7 @@ export default function PropertiesPage() {
       state: property.state,
       zipCode: property.zip,
       description: property.description || '',
+      khqrImageUrl: property.khqrImageUrl || '',
     });
     setOpen(true);
   };
@@ -135,12 +171,29 @@ export default function PropertiesPage() {
     const isEditing = editTargetId !== null;
     const url = isEditing ? `/api/properties?id=${editTargetId}` : '/api/properties';
     const method = isEditing ? 'PUT' : 'POST';
-
+    
     try {
+       let khqrImageUrl =
+        data.khqrImageUrl || '';
+
+      if (selectedKhqrFile) {
+        setUploadingKhqr(true);
+
+        khqrImageUrl =
+          await uploadKhqr(
+            selectedKhqrFile
+          );
+
+        setUploadingKhqr(false);
+      }
+
       const response = await fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+              ...data,
+          khqrImageUrl,
+        }),
       });
 
       if (!response.ok) {
@@ -305,9 +358,53 @@ export default function PropertiesPage() {
                     )}
                   />
 
-                  <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                    {form.formState.isSubmitting ? t('form.btnSubmitting') : t('form.btnSave')}
-                  </Button>
+                  <FormItem>
+                    <FormLabel>ABA KHQR</FormLabel>
+
+                    <Input
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+
+                        if (!file) return;
+
+                        setSelectedKhqrFile(file);
+
+                        setKhqrPreview(
+                          URL.createObjectURL(file)
+                        );
+                      }}
+                    />
+                  </FormItem>
+                     {khqrPreview && (
+                      <div className="mt-2">
+                        <img
+                          src={khqrPreview}
+                          alt="KHQR Preview"
+                          className="w-40 h-40 object-contain border rounded"
+                        />
+                      </div>
+                    )}
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={
+                        form.formState.isSubmitting ||
+                        uploadingKhqr
+                      }
+                    >
+                      {uploadingKhqr ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Uploading KHQR...
+                        </>
+                      ) : form.formState.isSubmitting ? (
+                        t('form.btnSubmitting')
+                      ) : (
+                        t('form.btnSave')
+                      )}
+                    </Button>
                 </form>
               </Form>
             </DialogContent>
@@ -351,7 +448,7 @@ export default function PropertiesPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
-            {properties.map((property) => {
+            {properties.map((property, idx) => {
               const totalRoomsCalculated = property.rooms?.length || 0;
               const occupiedRoomsCalculated = property.rooms?.filter(r => r.status === 'occupied').length || 0;
               
@@ -360,7 +457,7 @@ export default function PropertiesPage() {
                 : 0;
 
               return (
-                <Card key={property.id} className="hover:shadow-md transition-shadow h-full flex flex-col relative overflow-hidden group justify-between">
+                <Card key={property.id + idx} className="hover:shadow-md transition-shadow h-full flex flex-col relative overflow-hidden group justify-between">
                   <div>
                     <CardHeader className="pb-2">
                       <div className="flex justify-between items-start gap-2">
@@ -422,6 +519,16 @@ export default function PropertiesPage() {
                       </div>
                     </div>
                   </CardContent>
+
+                  {property.khqrImageUrl && (
+                    <div className="mt-3">
+                      <img
+                        src={property.khqrImageUrl}
+                        alt="ABA KHQR"
+                        className="w-24 h-24 rounded border"
+                      />
+                    </div>
+                  )}
                 </Card>
               );
             })}

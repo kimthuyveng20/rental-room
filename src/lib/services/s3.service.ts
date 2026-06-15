@@ -1,5 +1,7 @@
 // src/lib/services/s3.service.ts
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { randomUUID } from 'crypto';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export class S3Service {
   private static instance: S3Service;
@@ -55,4 +57,63 @@ export class S3Service {
 
     return `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${uniqueFileName}`;
   }
+
+   public async uploadKhqrImage(
+    buffer: Buffer,
+    filename: string,
+    contentType: string
+  ): Promise<string> {
+    const extension = filename.split('.').pop();
+
+    const key = `khqr/${randomUUID()}.${extension}`;
+
+    await this.s3Client.send(
+      new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+      })
+    );
+
+    return `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${key}`;
+  }
+
+  public getPublicUrl(key: string): string {
+    return `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${key}`;
+  }
+
+  public async getPresignedUrl(key: string, expiresInSeconds = 3600): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    // Generates a secure, temporary link
+    const signedUrl = await getSignedUrl(this.s3Client, command, {
+      expiresIn: expiresInSeconds,
+    });
+
+    return signedUrl;
+  }
+
+  public extractKeyFromUrl(urlOrKey: string): string {
+  if (!urlOrKey) return '';
+
+  // If it's already just a key and not a URL, return it directly
+  if (!urlOrKey.startsWith('http://') && !urlOrKey.startsWith('https://')) {
+    return urlOrKey;
+  }
+
+  try {
+    const url = new URL(urlOrKey);
+    // url.pathname will return something like "/khqr/178fa0c9-d721-41d5-8edd-9a777ba04807.jpg"
+    // We use .pathname.substring(1) to remove the leading slash "/"
+    return url.pathname.substring(1);
+  } catch (error) {
+    // Fallback safeguard in case URL parsing fails
+    console.error('Failed to parse S3 URL:', error);
+    return urlOrKey;
+  }
+}
 }

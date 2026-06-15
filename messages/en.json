@@ -120,6 +120,7 @@
   "Invoices": {
     "title": "Invoices Log",
     "dueDate": "Due Date",
+    "scanToPay": "Scan KHQR to Pay",
     "waterRate": "Water Rate (per m³)",
     "electricityRate": "Electricity Rate (per kWh)",
     "subtitle": "Manage, print, inspect, and delete utility bills",
@@ -166,7 +167,7 @@
     "deleteConfirmBtn": "Delete Permanently",
     "printHeader": "RENTAL INVOICE",
     "serialId": "SERIAL ID",
-    "companyName": "ESTATE OPERATIONS HQ",
+    "companyName": "Room manager",
     "printBillTo": "Bill To Recipient",
     "printAssignedRoom": "Assigned Room Unit",
     "printStatementSummary": "Statement Summary",

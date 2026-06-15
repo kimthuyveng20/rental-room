@@ -1,23 +1,48 @@
+// src/app/api/properties/route.ts
 import { NextResponse } from 'next/server';
-import {  getDb } from '@/src/lib/db';
+import { getDb } from '@/src/lib/db';
+import { S3Service } from '@/src/lib/services/s3.service';
 import { properties, rooms } from '@/src/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
-// GET: Fetch all properties along with their rooms
 export async function GET() {
   try {
     const db = getDb();
-    const dataMatrix = await db.query.properties.findMany({
+    const dbProperties = await db.query.properties.findMany({
       with: {
         rooms: true, 
       },
       orderBy: (properties, { desc }) => [desc(properties.createdAt)],
     });
 
-    return NextResponse.json(dataMatrix);
+    const s3Service = S3Service.getInstance();
+
+    // 1. Create an array of Promises (Notice NO 'await' before dbProperties.map)
+    const formattedDataPromises = dbProperties.map(async (property) => {
+      let imgUrl = null;
+      if (property.khqrImageUrl && property.khqrImageUrl.trim() !== '') {
+        const extractImg = s3Service.extractKeyFromUrl(property.khqrImageUrl);
+        imgUrl = await s3Service.getPresignedUrl(extractImg);
+      }
+
+      return {
+        ...property,
+        khqrImageUrl: imgUrl, 
+      };
+    });
+
+    // 2. NOW we wait for all those S3 promises to resolve completely!
+    const formattedData = await Promise.all(formattedDataPromises);
+
+    console.log("Pro", formattedData); // This will show your actual data now!
+    return NextResponse.json(formattedData);
+
   } catch (error) {
     console.error('FETCH_PROPERTIES_DATABASE_FAULT:', error);
-    return NextResponse.json({ error: 'Failed to fetch asset properties database records' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch asset properties database records' }, 
+      { status: 500 }
+    );
   }
 }
 
@@ -26,7 +51,7 @@ export async function POST(req: Request) {
   try {
     const db = getDb();
     const body = await req.json();
-    const { name, address, city, state, zipCode, description } = body;
+    const { name, address, city, state, zipCode, description, khqrImageUrl } = body;
 
     // Fallback owner profile ID mapping for local testing. 
     // Replace this with your actual user session parsing logic (e.g., auth() or getServerSession)
@@ -40,6 +65,7 @@ export async function POST(req: Request) {
       state: state.trim(),
       zip: zipCode.trim(), // Maps client-side zipCode directly into database 'zip' column
       description: description?.trim() || null,
+      khqrImageUrl: khqrImageUrl?.trim() || null,
     }).returning();
 
     // Return the structure with an empty rooms array placeholder to keep client maps content
@@ -106,7 +132,7 @@ export async function PUT(req: Request) {
 
     const propertyId = parseInt(propertyIdStr, 10);
     const body = await req.json();
-    const { name, address, city, state, zipCode, description } = body;
+    const { name, address, city, state, zipCode, description ,khqrImageUrl} = body;
 
     // Execute update verification row change execution 
     const [updatedProperty] = await db
@@ -118,6 +144,8 @@ export async function PUT(req: Request) {
         state: state.trim(),
         zip: zipCode.trim(),
         description: description?.trim() || null,
+          khqrImageUrl:
+    khqrImageUrl?.trim() || null,
       })
       .where(eq(properties.id, propertyId))
       .returning();

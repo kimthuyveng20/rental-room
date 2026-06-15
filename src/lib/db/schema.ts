@@ -65,6 +65,22 @@ export const invoiceStatusEnum = pgEnum('invoice_status', [
   'cancelled',
 ]);
 
+export const paymentProviderEnum = pgEnum('payment_provider', [
+  'cash',
+  'aba',
+  'acleda',
+  'wing',
+]);
+
+export const paymentTransactionStatusEnum = pgEnum(
+  'payment_transaction_status',
+  [
+    'pending',
+    'paid',
+    'failed',
+    'expired',
+  ]
+);
 // Tables
 export const users = pgTable('users', {
   id: serial('id').primaryKey(),
@@ -87,6 +103,9 @@ export const properties = pgTable('properties', {
   state: varchar('state', { length: 100 }).notNull(),
   zip: varchar('zip', { length: 20 }).notNull(),
   description: text('description'),
+  khqrImageUrl: varchar('khqr_image_url', {
+    length: 1000,
+  }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -159,6 +178,46 @@ export const payments = pgTable('payments', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
+
+export const paymentTransactions = pgTable(
+  'payment_transactions',
+  {
+    id: serial('id').primaryKey(),
+
+    invoiceId: integer('invoice_id')
+      .notNull()
+      .references(() => invoices.id),
+
+    amountUsd: decimal('amount_usd', {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+
+    amountRiel: integer('amount_riel'),
+
+    provider: paymentProviderEnum('provider')
+      .default('aba')
+      .notNull(),
+
+    transactionRef: varchar('transaction_ref', {
+      length: 255,
+    }),
+
+    qrReference: varchar('qr_reference', {
+      length: 255,
+    }),
+
+    status: paymentTransactionStatusEnum('status')
+      .default('pending')
+      .notNull(),
+
+    paidAt: timestamp('paid_at'),
+
+    createdAt: timestamp('created_at')
+      .defaultNow()
+      .notNull(),
+  }
+);
 
 export const maintenanceRequests = pgTable('maintenance_requests', {
   id: serial('id').primaryKey(),
@@ -237,7 +296,17 @@ export const invoices = pgTable('invoices', {
   status: invoiceStatusEnum('status').default('pending').notNull(),
   billingPeriod: varchar('billing_period', { length: 50 }).notNull(),
   dueDate: date('due_date').notNull(),
-  
+   paymentReference: varchar(
+    'payment_reference',
+    { length: 255 }
+  ),
+
+  paidAt: timestamp('paid_at'),
+
+  paymentScreenshot: varchar(
+    'payment_screenshot',
+    { length: 1000 }
+  ),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -322,12 +391,6 @@ export const inspectionsRelations = relations(
   })
 );
 
-export const invoicesRelations = relations(invoices, ({ one }) => ({
-  lease: one(leases, {
-    fields: [invoices.leaseId],
-    references: [leases.id],
-  }),
-}));
 
 
 export const tenantsRelations = relations(tenants, ({ one, many }) => ({
@@ -345,3 +408,28 @@ export const documentsRelations = relations(documents, ({ one }) => ({
     references: [tenants.id],
   }),
 }));
+
+export const paymentTransactionsRelations =
+  relations(
+    paymentTransactions,
+    ({ one }) => ({
+      invoice: one(invoices, {
+        fields: [paymentTransactions.invoiceId],
+        references: [invoices.id],
+      }),
+    })
+  );
+
+  export const invoicesRelations = relations(
+  invoices,
+  ({ one, many }) => ({
+    lease: one(leases, {
+      fields: [invoices.leaseId],
+      references: [leases.id],
+    }),
+
+    paymentTransactions: many(
+      paymentTransactions
+    ),
+  })
+);

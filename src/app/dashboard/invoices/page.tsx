@@ -46,8 +46,19 @@ import React from 'react';
 interface ActiveLease {
   id: number;
   monthlyRent: string;
-  room: { roomNumber: string };
-  tenant: { user: { name: string } };
+  room: {
+    roomNumber: string;
+    property?: {
+      id: number;
+      name: string;
+      khqrImageUrl?: string | null;
+    };
+  };
+  tenant: {
+    user: {
+      name: string;
+    };
+  };
 }
 
 interface DBInvoice {
@@ -68,7 +79,7 @@ interface DBInvoice {
 
 export default function InvoicesPage() {
   const t = useTranslations('Invoices'); 
-
+  const USD_TO_RIEL = 4000;
   const [invoices, setInvoices] = useState<DBInvoice[]>([]);
   const [activeLeases, setActiveLeases] = useState<ActiveLease[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,14 +118,23 @@ export default function InvoicesPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedMonth]);
+
+  const formatCurrency = (usd: number) => {
+  const riel = usd * USD_TO_RIEL;
+
+  return {
+    usd: `$${usd.toFixed(2)}`,
+    riel: `${Math.round(riel).toLocaleString()} ៛`,
+  };
+};
   const [formData, setFormData] = useState({
     leaseId: '',
     waterLastMonth: '',
     waterThisMonth: '',
-    waterRate: '2.50',
+    waterRate: '0.625',
     electricityLastMonth: '',
     electricityThisMonth: '',
-    electricityRate: '0.25',
+    electricityRate: '0.375',
     billingPeriod: '',
     dueDate: '',
   });
@@ -281,6 +301,7 @@ export default function InvoicesPage() {
 
   const calculateTotals = (invoice: DBInvoice | null) => {
     if (!invoice) return { rent: 0, water: 0, electricity: 0, grandTotal: 0 };
+    
     const rent = parseFloat(invoice.lease?.monthlyRent || '0');
     const waterUnits = Math.max(0, invoice.waterThisMonth - invoice.waterLastMonth);
     const water = waterUnits * parseFloat(invoice.waterRate);
@@ -319,7 +340,7 @@ export default function InvoicesPage() {
         ${t("waterSupply").padEnd(15)} $${water.toFixed(2).padStart(11)}
         ${t("electricity").padEnd(15)} $${electricity.toFixed(2).padStart(11)}
       ------------------------------
-      ${t("totalDue").padEnd(17)} $${grandTotal.toFixed(2).padStart(11)}
+      ${t("totalDue")} ${grandTotal.toFixed(2)} (${Math.round(grandTotal * USD_TO_RIEL).toLocaleString()} ៛)
       ==============================
       ${t("thankYou")}
     `;
@@ -358,6 +379,7 @@ export default function InvoicesPage() {
     }
   };
 
+  
   if (loading) {
     return (
       <DashboardLayout>
@@ -466,6 +488,7 @@ export default function InvoicesPage() {
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-muted-foreground">{t('waterRate')} ??</label>
                       <Input name="waterRate" type="number" step="0.01" value={formData.waterRate} onChange={handleInputChange} required />
+                      <span className='pl-2 text-xs font-semibold text-muted-foreground'>0.625 ($) ~ 2500 (៛)</span>
                     </div>
                   </div>
 
@@ -482,6 +505,7 @@ export default function InvoicesPage() {
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-muted-foreground">{t('electricityRate')}</label>
                       <Input name="electricityRate" type="number" step="0.01" value={formData.electricityRate} onChange={handleInputChange} required />
+                      <span className='pl-2 text-xs font-semibold text-muted-foreground'>0.375 ($) ~ 1500 (៛)</span>
                     </div>
                   </div>
 
@@ -546,7 +570,14 @@ export default function InvoicesPage() {
                             <div className="text-xs text-muted-foreground font-medium">{t('room')}: {invoice.lease?.room?.roomNumber || t('unassigned')}</div>
                           </td>
                           <td className="px-6 py-4 text-muted-foreground font-medium">{invoice.billingPeriod}</td>
-                          <td className="px-6 py-4 font-bold text-foreground text-sm">${grandTotal.toFixed(2)}</td>
+                          <td className="px-6 py-4">
+                            <div className="font-bold">
+                              ${grandTotal.toFixed(2)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {(grandTotal * USD_TO_RIEL).toLocaleString()} ៛
+                            </div>
+                          </td>
                           
                           <td className="px-6 py-4">
                             <DropdownMenu>
@@ -735,7 +766,14 @@ export default function InvoicesPage() {
                   </div>
                   <div className="flex justify-between items-center pt-4 border-t-2 border-foreground text-base">
                     <span className="font-black">{t('totalBillDue')}</span>
-                    <span className="font-black text-primary">${activeDetails.grandTotal.toFixed(2)}</span>
+                    <div className="text-right">
+                      <div className="font-black text-primary">
+                        ${activeDetails.grandTotal.toFixed(2)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {(activeDetails.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -771,6 +809,10 @@ export default function InvoicesPage() {
         <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:text-black z-50 bg-white text-black font-sans min-h-screen text-xs leading-relaxed">
           {invoicesToPrint.map((invoice, index) => {
             const details = calculateTotals(invoice);
+
+            const totalUSD = details.grandTotal;
+            const totalRiel = totalUSD * USD_TO_RIEL;
+            const khqrUrl = invoice.lease?.room?.property?.khqrImageUrl;
             return (
               <div 
                 key={invoice.id} 
@@ -785,7 +827,8 @@ export default function InvoicesPage() {
                     </div>
                     <div className="text-right space-y-0.5">
                       <strong className="text-base text-black block font-black uppercase tracking-wider">{t('companyName')}</strong>
-                      <p className="text-gray-500 font-mono">billing@property-management.local</p>
+                      <p className="text-gray-500 font-mono">kimthuyveng20@gmail.com</p>
+                      <p className="text-gray-500 font-mono">096 92 63064</p>
                     </div>
                   </div>
 
@@ -839,17 +882,46 @@ export default function InvoicesPage() {
                   </table>
                 </div>
 
-                <div className="flex justify-end mt-12 border-t-4 border-black pt-6">
+                <div className="flex justify-between mt-12 border-t-4 border-black pt-6">
+                  <div>
+                      {khqrUrl && (
+                        <div className="flex flex-col items-start">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                            {t('scanToPay')}
+                          </p>
+
+                          <div className="p-1 bg-white border rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                            <img
+                              src={khqrUrl}
+                              alt="KHQR Payment"
+                              className="w-28 h-28 object-contain bg-white" 
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   <div className="w-72 space-y-2 text-right">
-                    <div className="flex justify-between text-xs text-gray-600 font-semibold">
+                    
+                    < div className="flex justify-between text-xs text-gray-600 font-semibold">
                       <span>{t('printSubtotal')}:</span>
-                      <span>${details.grandTotal.toFixed(2)}</span>
+                      <div className="text-right">
+                        <div>${details.grandTotal.toFixed(2)}</div>
+                        <div className="text-xs text-gray-500">
+                          {(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
+                        </div>
+                      </div>
                     </div>
                     <div className="flex justify-between text-xl font-black border-t-2 pt-3 border-black text-black">
                       <span>{t('printTotalDue')}:</span>
-                      <span>${details.grandTotal.toFixed(2)}</span>
+                      <div className="text-right">
+                        <div>${details.grandTotal.toFixed(2)}</div>
+                        <div className="text-xs text-gray-500">
+                          {(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
+                        </div>
+                      </div>
                     </div>
                   </div>
+                   
                 </div>
               </div>
             );
