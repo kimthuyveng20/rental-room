@@ -1,16 +1,25 @@
-CREATE TYPE "public"."payment_provider" AS ENUM('cash', 'aba', 'acleda', 'wing');--> statement-breakpoint
-CREATE TYPE "public"."payment_transaction_status" AS ENUM('pending', 'paid', 'failed', 'expired');--> statement-breakpoint
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_provider') THEN
+        CREATE TYPE "public"."payment_provider" AS ENUM('cash', 'aba', 'acleda', 'wing');
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'payment_transaction_status') THEN
+        CREATE TYPE "public"."payment_transaction_status" AS ENUM('pending', 'paid', 'failed', 'expired');
+    END IF;
+END $$;
+--> statement-breakpoint
 CREATE TABLE "payment_transactions" (
-	"id" serial PRIMARY KEY NOT NULL,
-	"invoice_id" integer NOT NULL,
-	"amount_usd" numeric(10, 2) NOT NULL,
-	"amount_riel" integer,
-	"provider" "payment_provider" DEFAULT 'aba' NOT NULL,
-	"transaction_ref" varchar(255),
-	"qr_reference" varchar(255),
-	"status" "payment_transaction_status" DEFAULT 'pending' NOT NULL,
-	"paid_at" timestamp,
-	"created_at" timestamp DEFAULT now() NOT NULL
+    "id" serial PRIMARY KEY NOT NULL,
+    "invoice_id" integer NOT NULL,
+    "amount_usd" numeric(10, 2) NOT NULL,
+    "amount_riel" integer,
+    "provider" "payment_provider" DEFAULT 'aba' NOT NULL,
+    "transaction_ref" varchar(255),
+    "qr_reference" varchar(255),
+    "status" "payment_transaction_status" DEFAULT 'pending' NOT NULL,
+    "paid_at" timestamp,
+    "created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 ALTER TABLE "invoices" ADD COLUMN "payment_reference" varchar(255);--> statement-breakpoint
