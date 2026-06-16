@@ -49,8 +49,7 @@ jobs:
           version: 9
 
       - name: Push Database Schema to AWS Postgres
-        # The --no-package-lock flag or ignoring workspace rules forces a decoupled run
-        run: pnpm dlx --silent drizzle-kit push
+        run: npx --yes drizzle-kit push --config=drizzle.config.ts
         env:
           DATABASE_URL: "postgresql://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ secrets.AWS_EC2_HOST }}:5432/${{ secrets.DB_NAME }}"
           NODE_ENV: production
