@@ -19,6 +19,9 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Provide a default fallback for Next.js build-time compilation
+ENV DATABASE_URL="postgresql://kimthuy:kimthuy1997@postgres:5432/rental_room"
+
 RUN pnpm build
 
 # Stage 3: Minimal production runner
