@@ -41,13 +41,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24' # Node 20 actions are deprecated; updating to 24 keeps your pipeline green
 
-      - name: Install Dependencies
-        run: npm ci || npm install
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
 
       - name: Push Database Schema to AWS Postgres
-        run: npx drizzle-kit push
+        # We use 'pnpm dlx' to run drizzle-kit dynamically so you don't waste time running a full install
+        run: pnpm dlx drizzle-kit push
         env:
           DATABASE_URL: "postgresql://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ secrets.AWS_EC2_HOST }}:5432/${{ secrets.DB_NAME }}"
       # --- END OF DATABASE MIGRATION STEP ---
