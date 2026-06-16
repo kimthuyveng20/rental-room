@@ -41,22 +41,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24' # Node 20 actions are deprecated; updating to 24 keeps your pipeline green
+          node-version: '20'
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
+      - name: Install Dependencies
+        run: npm ci || npm install
 
       - name: Push Database Schema to AWS Postgres
-        run: |
-          pnpm install drizzle-kit pg --config.ignore-scripts=true
-          pnpm exec drizzle-kit push
+        run: npx drizzle-kit push
         env:
           DATABASE_URL: "postgresql://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ secrets.AWS_EC2_HOST }}:5432/${{ secrets.DB_NAME }}"
-          NODE_ENV: production
-        env:
-          DATABASE_URL: "postgresql://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@${{ secrets.AWS_EC2_HOST }}:5432/${{ secrets.DB_NAME }}"
+      # --- END OF DATABASE MIGRATION STEP ---
 
       - name: Copy docker-compose file to EC2 via SCP
         uses: appleboy/scp-action@v0.1.7
