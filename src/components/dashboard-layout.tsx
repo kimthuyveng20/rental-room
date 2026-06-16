@@ -110,7 +110,7 @@ export function DashboardLayout({
     setLoggingOut(true);
 
     await signOut({
-      callbackUrl: '/',
+      callbackUrl: '/login',
     });
   } catch (error) {
     console.error('Logout failed:', error);
