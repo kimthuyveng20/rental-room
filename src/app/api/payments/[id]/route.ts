@@ -1,30 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/src/lib/db';
-import { payments } from '@/src/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { payments, leases, rooms, properties } from '@/src/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
 import { format } from 'date-fns';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/src/lib/auth";
 
-// 1. Explicitly type the asynchronous context for Next.js 15
 type RouteContext = {
   params: Promise<{
-    id: string; // Matches the folder [id] name exactly
+    id: string; 
   }>;
 };
 
-// 2. Swapped 'Request' to 'NextRequest' for modern Next.js environments
 export async function PATCH(
   request: NextRequest,
   context: RouteContext
 ) {
   try {
+    // 1. Authenticate user session
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // 🔒 Tenant Guard: Tenants cannot mutate transactional ledgers
+    if (session.user.role === 'tenant') {
+      return NextResponse.json({ error: 'Forbidden: Tenants cannot authorize status transitions' }, { status: 403 });
+    }
+
+    const currentUserId = Number(session.user.id);
+    const userRole = session.user.role;
     const db = getDb();
+    
     const body = await request.json();
     let { status } = body;
 
-    // 3. Await the Next.js 15 params promise
+    // 2. Await Next.js dynamic path parameters
     const resolvedParams = await context.params;
-
-    // 4. Robust fallback parsing using the clean resolved ID
     const rawId = resolvedParams.id || request.url.split('/').pop()?.split('?')[0];
     const paymentId = rawId ? parseInt(rawId, 10) : NaN;
 
@@ -32,7 +44,32 @@ export async function PATCH(
       return NextResponse.json({ error: `Invalid payment URL ID parameter input: "${rawId}"` }, { status: 400 });
     }
 
-    // 💡 FIX 2: Standardize the state string. If frontend sends 'completed', save it as 'paid'
+    // 3. Fetch existing ledger item to evaluate scope permissions
+    const existingPayment = await db.query.payments.findFirst({
+      where: (payments, { eq }) => eq(payments.id, paymentId),
+      with: {
+        lease: {
+          with: { room: true }
+        }
+      }
+    });
+
+    if (!existingPayment) {
+      return NextResponse.json({ error: `Payment entry record row #${paymentId} was not found.` }, { status: 404 });
+    }
+
+    // 🔒 Owner Guard: Verify ownership of property holding the room asset tied to this lease
+    if (userRole === 'owner') {
+      const targetProperty = await db.query.properties.findFirst({
+        where: (properties, { eq }) => eq(properties.id, existingPayment.lease.room.propertyId)
+      });
+
+      if (!targetProperty || targetProperty.ownerId !== currentUserId) {
+        return NextResponse.json({ error: 'Forbidden: Unauthorized adjustment attempt for this asset ledger line item' }, { status: 403 });
+      }
+    }
+
+    // 4. Standardize the state metrics strings
     if (status === 'completed') {
       status = 'paid';
     }
@@ -41,11 +78,12 @@ export async function PATCH(
       return NextResponse.json({ error: `Invalid status enumeration tag value: "${status}"` }, { status: 400 });
     }
 
-    // 💡 FIX 3: Stamping date for 'paid'
+    // 5. Build localized time stamps 
     const paymentDate = status === 'paid' 
       ? format(new Date(), 'yyyy-MM-dd') 
       : null;
 
+    // 6. Persist status change transformations
     const [updatedPayment] = await db
       .update(payments)
       .set({ 
@@ -55,10 +93,6 @@ export async function PATCH(
       })
       .where(eq(payments.id, paymentId))
       .returning();
-
-    if (!updatedPayment) {
-      return NextResponse.json({ error: `Payment entry record row #${paymentId} was not found.` }, { status: 404 });
-    }
 
     return NextResponse.json(updatedPayment);
   } catch (error: any) {

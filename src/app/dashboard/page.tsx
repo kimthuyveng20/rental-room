@@ -2,9 +2,12 @@
 import { Card, CardContent } from '@/src/components/ui/card';
 import { Building, DoorOpen, Users, DollarSign } from 'lucide-react';
 import { DashboardLayout } from '@/src/components/dashboard-layout';
-import { getDashboardStats, getMaintenanceRequests, getRecentPayments } from '@/src/lib/queries';
 import { getTranslations } from 'next-intl/server';
-import { DashboardTabs } from '@/src/components/dashboard-tabs'; // Import new client handler
+import { DashboardTabs } from '@/src/components/dashboard-tabs'; 
+import { getDashboardStats, getMaintenanceRequests, getRecentPayments } from '@/src/actions/dashboard';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/src/lib/auth";
+import { redirect } from 'next/navigation';
 
 const STATS_CONFIG: Record<string, { icon: any; color: string }> = {
   'Total Properties': { icon: Building, color: 'bg-blue-100 text-blue-700' },
@@ -14,15 +17,24 @@ const STATS_CONFIG: Record<string, { icon: any; color: string }> = {
 };
 
 export default async function DashboardPage() {
+  // 1. Authenticate user and get their ID in the server environment
+  const session = await getServerSession(authOptions);
+  
+  if (!session?.user?.id) {
+    redirect('/auth/login'); // Protect route from unauthenticated access
+  }
+
+  const ownerUserId = Number(session.user.id);
+
+  // 2. Pass ownerUserId down into the query execution streams
   const [dbStats, recentPayments, maintenanceRequests] = await Promise.all([
-    getDashboardStats(),
-    getRecentPayments(),
-    getMaintenanceRequests(),
+    getDashboardStats(ownerUserId),
+    getRecentPayments(ownerUserId),
+    getMaintenanceRequests(ownerUserId),
   ]);
 
   const t = await getTranslations("dashboard");
 
-  // Format key objects to pass down translations cleanly to a client scope safely
   const clientTranslations = {
     tabs: {
       recentPayments: t('tabs.recentPayments'),
@@ -38,7 +50,7 @@ export default async function DashboardPage() {
   };
 
   return (
-    <DashboardLayout userRole="owner">
+    <DashboardLayout userRole={session.user.role || "owner"}>
       <div className="space-y-6">
         {/* Header */}
         <div>

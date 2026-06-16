@@ -8,7 +8,7 @@ import { Button } from '@/src/components/ui/button';
 import { Input } from '@/src/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Alert, AlertDescription } from '@/src/components/ui/alert';
-import { AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 export default function SignIn() {
   const router = useRouter();
@@ -17,14 +17,12 @@ export default function SignIn() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   // Handle Standard Credentials Login
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    setSuccess('');
 
     try {
       const result = await signIn('credentials', {
@@ -46,40 +44,11 @@ export default function SignIn() {
     }
   };
 
-  // Handle Email Magic Link / Code Login
-  const handleEmailMagicLinkSubmit = async () => {
-    if (!email || !email.includes('@')) {
-      setError('Please enter a valid email address first.');
-      return;
-    }
-    setIsLoading(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      const result = await signIn('email', {
-        email: email.toLowerCase().trim(),
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError('Could not send verification email. Please try again.');
-      } else if (result?.ok) {
-        setSuccess('A verification link has been sent to your email address!');
-      }
-    } catch (err) {
-      setError('An error occurred. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Handle Google OAuth Login
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     setError('');
     try {
-      // Directs user straight to Google account chooser, then back to dashboard
       await signIn('google', { callbackUrl: '/dashboard' });
     } catch (err) {
       setError('Failed to authenticate with Google.');
@@ -92,7 +61,7 @@ export default function SignIn() {
       <div className="w-full max-w-md">
         <Card>
           <CardHeader className="space-y-2">
-            <CardTitle className="text-2xl">Welcome Back</CardTitle>
+            <CardTitle className="text-2xl text-center">Welcome Back</CardTitle>
             <CardDescription>
               Sign in to your Rental Management account
             </CardDescription>
@@ -126,13 +95,6 @@ export default function SignIn() {
               </Alert>
             )}
 
-            {success && (
-              <Alert className="border-green-600 bg-green-50">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <AlertDescription className="text-green-800">{success}</AlertDescription>
-              </Alert>
-            )}
-
             <form onSubmit={handleCredentialsSubmit} className="space-y-4">
               <div className="space-y-2">
                 <label htmlFor="email" className="text-sm font-medium text-foreground">
@@ -160,25 +122,17 @@ export default function SignIn() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading || isGoogleLoading}
+                  required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <Button
-                  type="submit"
-                  disabled={isLoading || isGoogleLoading || !password}
-                >
-                  {isLoading ? 'Signing in...' : 'With Password'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={handleEmailMagicLinkSubmit}
-                  disabled={isLoading || isGoogleLoading}
-                >
-                  Send Sign-In Code
-                </Button>
-              </div>
+              <Button
+                type="submit"
+                className="w-full mt-2"
+                disabled={isLoading || isGoogleLoading || !password}
+              >
+                {isLoading ? 'Signing in...' : 'Sign In'}
+              </Button>
             </form>
 
             <div className="mt-6 pt-6 border-t text-center">

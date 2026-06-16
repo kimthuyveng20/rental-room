@@ -88,6 +88,9 @@ export const users = pgTable('users', {
   name: varchar('name', { length: 255 }).notNull(),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
   role: userRoleEnum('role').notNull().default('tenant'),
+  verificationCode: varchar('verification_code', { length: 6 }),
+  verificationExpires: timestamp('verification_expires'),
+  emailVerified: timestamp('email_verified'), // Maps perfectly to NextAuth's expectations
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
@@ -137,6 +140,8 @@ export const tenants = pgTable('tenants', {
   emergencyContact: varchar('emergency_contact', { length: 255 }),
   employmentVerification: boolean('employment_verification').default(false),
   imageUrl: varchar('image_url', { length: 512 }),
+  createdByOwnerId: integer('created_by_owner_id')
+    .references(() => users.id),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 

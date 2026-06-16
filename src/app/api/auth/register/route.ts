@@ -3,6 +3,8 @@ import { hash } from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { users } from "@/src/lib/db/schema";
 import { getDb } from "@/src/lib/db";
+import { EmailService } from "@/src/lib/services/email.service";
+
 
 export async function POST(req: Request) {
   try {
@@ -35,16 +37,26 @@ export async function POST(req: Request) {
     // 4. Hash the password securely (12 salt rounds)
     const hashedPassword = await hash(password, 12);
 
-    // 5. Insert user into the database
+    // 5. Generate custom 6-digit verification code and 15-minute expiration window
+    const verificationCode = EmailService.generateVerificationCode();
+    const verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 Minutes from now
+
+    // 6. Insert user into the database with verification markers
     await db.insert(users).values({
       email: normalizedEmail,
       name: fullName,
       passwordHash: hashedPassword,
       role: role, // 'owner', 'tenant', or 'admin'
+      verificationCode: verificationCode,
+      verificationExpires: verificationExpires,
+      emailVerified: null, // Stays null until they verify via your code validation endpoint
     });
 
+    // 7. Fire the SMTP transactional mail with the code
+    await EmailService.sendVerificationCode(normalizedEmail, verificationCode, fullName);
+
     return NextResponse.json(
-      { message: "User registered successfully" },
+      { message: "User registered successfully. Verification email sent." },
       { status: 201 }
     );
   } catch (error) {

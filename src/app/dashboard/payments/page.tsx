@@ -170,17 +170,24 @@ export default function PaymentsPage() {
   const itemsPerPage = 5;
 
   const syncPaymentsLedger = async () => {
-    try {
-      const res = await fetch('/api/payments');
-      if (!res.ok) throw new Error('Network response fault occurred');
-      const data = await res.json();
-      setPayments(data);
-    } catch (err) {
-      console.error("Initialization pipeline connection error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    const res = await fetch('/api/payments');
+    if (!res.ok) throw new Error('Network response fault occurred');
+    const data = await res.json();
+    
+    // Normalize data from the backend ('paid' -> 'completed') right away
+    const normalizedData = data.map((p: any) => ({
+      ...p,
+      status: p.status === 'paid' ? 'completed' : p.status
+    }));
+
+    setPayments(normalizedData);
+  } catch (err) {
+    console.error("Initialization pipeline connection error:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     syncPaymentsLedger();
@@ -236,7 +243,8 @@ export default function PaymentsPage() {
 
   const calculatedStats = payments.reduce((acc, current) => {
     const val = parseFloat(current.amount || '0');
-    if (current.status === 'completed') acc.collected += val;
+    // Account for both frontend ('completed') and backend ('paid') status variants
+    if (current.status === 'completed' || current.status === 'paid' as any) acc.collected += val;
     if (current.status === 'pending') acc.pending += val;
     if (current.status === 'overdue') acc.overdue += val;
     return acc;

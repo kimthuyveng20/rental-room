@@ -1,0 +1,2 @@
+ALTER TABLE "tenants" ADD COLUMN "created_by_owner_id" integer;--> statement-breakpoint
+ALTER TABLE "tenants" ADD CONSTRAINT "tenants_created_by_owner_id_users_id_fk" FOREIGN KEY ("created_by_owner_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;

@@ -38,10 +38,13 @@ import { useTranslations } from 'next-intl';
 
 interface MaintenanceClientProps {
   initialRequests: any[];
+  rooms: { id: number; roomNumber: string }[];
 }
 
-export function MaintenanceClient({ initialRequests }: MaintenanceClientProps) {
+export function MaintenanceClient({ initialRequests, rooms }: MaintenanceClientProps) {
   const t = useTranslations('maintenance');
+  const r = useTranslations("Room");
+
   const [open, setOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -146,13 +149,20 @@ export function MaintenanceClient({ initialRequests }: MaintenanceClientProps) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('form.labels.roomNumber')}</FormLabel>
-                      <FormControl>
-                        <input
-                          placeholder={t('form.placeholders.room')}
-                          {...field}
-                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                        />
-                      </FormControl>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={t('form.placeholders.room')} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {rooms.map((room) => (
+                            <SelectItem key={room.id} value={room.roomNumber}>
+                            {r("title")} - {room.roomNumber}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

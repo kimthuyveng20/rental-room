@@ -1,32 +1,116 @@
-import { rooms } from '@/src/lib/db/schema'; // Ensure this is imported at the top of route.ts
 import { NextResponse } from 'next/server';
 import { getDb } from '@/src/lib/db';
-import { leases } from '@/src/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { leases, rooms, properties, tenants } from '@/src/lib/db/schema';
+import { eq, and, exists, type InferSelectModel } from 'drizzle-orm';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/src/lib/auth";
 
+// Extract Drizzle schema row types to avoid implicit 'any[]' array assignment bugs
+type RoomRecord = InferSelectModel<typeof rooms>;
+
+// --- GET: FETCH SECURED LEASES PAGE MATRIX ---
 export async function GET() {
   try {
-    // 1. Fetch current leases with their related room and user data
+    // 1. Authenticate user session framework
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const currentUserId = Number(session.user.id);
+    const userRole = session.user.role;
     const db = getDb();
-    const activeLeases = await db.query.leases.findMany({
-      with: {
-        room: true,
-        tenant: {
-          with: { user: true }
-        }
-      },
-      orderBy: (leases, { desc }) => [desc(leases.createdAt)],
-    });
 
-    // 2. Fetch unlinked/available rooms for new assignments
-    const availableRooms = await db.query.rooms.findMany({
-      where: (rooms, { eq }) => eq(rooms.status, 'available'),
-    });
+    // Explicitly typed tracking storage boundaries
+    let activeLeases: any[] = []; 
+    let availableRooms: RoomRecord[] = []; 
+    let registeredTenants: any[] = [];
 
-    // 3. Fetch tenants
-    const registeredTenants = await db.query.tenants.findMany({
-      with: { user: true }
-    });
+    // 2. Multi-Role Data Isolation Matrix Processing
+    if (userRole === 'admin') {
+      // Admins pull clean global data feeds
+      activeLeases = await db.query.leases.findMany({
+        with: {
+          room: true,
+          tenant: { with: { user: true } }
+        },
+        orderBy: (leases, { desc }) => [desc(leases.createdAt)],
+      });
+
+      availableRooms = await db.query.rooms.findMany({
+        where: (rooms, { eq }) => eq(rooms.status, 'available'),
+      });
+
+      registeredTenants = await db.query.tenants.findMany({
+        with: { user: true }
+      });
+
+    } else if (userRole === 'owner') {
+      // 🔒 Owner Isolation: Only discover leases linked to rooms in properties they own
+      activeLeases = await db.query.leases.findMany({
+        where: (lease, { exists }) => exists(
+          db.select()
+            .from(rooms)
+            .innerJoin(properties, eq(rooms.propertyId, properties.id))
+            .where(
+              and(
+                eq(rooms.id, lease.roomId),
+                eq(properties.ownerId, currentUserId)
+              )
+            )
+        ),
+        with: {
+          room: true,
+          tenant: { with: { user: true } }
+        },
+        orderBy: (leases, { desc }) => [desc(leases.createdAt)],
+      });
+
+      // 🔒 Owner Isolation: Only view vacant rooms from properties they own
+      availableRooms = await db.query.rooms.findMany({
+        where: (room, { exists }) => and(
+          eq(room.status, 'available'),
+          exists(
+            db.select()
+              .from(properties)
+              .where(
+                and(
+                  eq(properties.id, room.propertyId),
+                  eq(properties.ownerId, currentUserId)
+                )
+              )
+          )
+        )
+      });
+
+      // Owners can look up registered tenant pools to assign them new leases
+      registeredTenants = await db.query.tenants.findMany({
+        with: { user: true }
+      });
+
+    } else if (userRole === 'tenant') {
+      // 🔒 Tenant Isolation: Can only discover their specific active contract profiles
+      activeLeases = await db.query.leases.findMany({
+        where: (lease, { exists }) => exists(
+          db.select()
+            .from(tenants)
+            .where(
+              and(
+                eq(tenants.id, lease.tenantId),
+                eq(tenants.userId, currentUserId)
+              )
+            )
+        ),
+        with: {
+          room: true,
+          tenant: { with: { user: true } }
+        },
+      });
+
+      // Tenants don't need access to structural assignment parameters
+      availableRooms = [];
+      registeredTenants = [];
+    }
 
     return NextResponse.json({
       leases: activeLeases,
@@ -39,13 +123,37 @@ export async function GET() {
   }
 }
 
+// --- POST: AUTHENTICATE AND AUTHORIZE NEW LEASES ---
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Tenant role guard block
+    if (session.user.role === 'tenant') {
+      return NextResponse.json({ error: 'Forbidden: Tenants cannot author leases' }, { status: 403 });
+    }
+
+    const currentUserId = Number(session.user.id);
     const db = getDb();
     const body = await req.json();
     const { roomId, tenantId, startDate, endDate, rentAmount, depositAmount } = body;
 
-    // 1. Write the new lease record into the database using financial scale translations
+    // 🔒 Owner Guard: Check room binding rights prior to processing state transformations
+    if (session.user.role === 'owner') {
+      const targetRoomProperty = await db.query.rooms.findFirst({
+        where: (rooms, { eq }) => eq(rooms.id, Number(roomId)),
+        with: { property: true }
+      });
+
+      if (!targetRoomProperty || targetRoomProperty.property.ownerId !== currentUserId) {
+        return NextResponse.json({ error: 'Forbidden: You do not own this property asset room.' }, { status: 403 });
+      }
+    }
+
+    // Write primary contract ledger track record
     const [newLeaseRecord] = await db.insert(leases).values({
       roomId: Number(roomId),
       tenantId: Number(tenantId),
@@ -56,13 +164,13 @@ export async function POST(req: Request) {
       status: 'active',
     }).returning();
 
-    // 2. Automatically transition the room status flag to occupied
+    // Automatically transition the room status flag to occupied
     await db
       .update(rooms)
       .set({ status: 'occupied' })
       .where(eq(rooms.id, Number(roomId)));
 
-    // 3. Return the fully resolved lease record including related models
+    // Return the deeply populated lease schema tree layout back to client components
     const detailedLease = await db.query.leases.findFirst({
       where: (leases, { eq }) => eq(leases.id, newLeaseRecord.id),
       with: {
@@ -78,9 +186,19 @@ export async function POST(req: Request) {
   }
 }
 
-
+// --- DELETE: SECURE LEASE TERMINATION SEQUENCE ---
 export async function DELETE(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (session.user.role === 'tenant') {
+      return NextResponse.json({ error: 'Forbidden: Tenants cannot void agreements' }, { status: 403 });
+    }
+
+    const currentUserId = Number(session.user.id);
     const db = getDb();
     const { searchParams } = new URL(req.url);
     const leaseIdStr = searchParams.get('id');
@@ -91,26 +209,31 @@ export async function DELETE(req: Request) {
 
     const leaseId = parseInt(leaseIdStr, 10);
 
-    // 1. Discover the targeted lease record to find out which room it occupies
+    // Fetch targets including parent property relations to trace management scopes
     const targetLease = await db.query.leases.findFirst({
       where: (leases, { eq }) => eq(leases.id, leaseId),
+      with: {
+        room: { with: { property: true } }
+      }
     });
 
     if (!targetLease) {
       return NextResponse.json({ error: 'Lease agreement record not found' }, { status: 404 });
     }
 
-    // 2. Perform a safe multi-step operation inside a database transaction block
+    // 🔒 Owner Guard: Check authority over trace records before running database manipulations
+    if (session.user.role === 'owner' && targetLease.room.property.ownerId !== currentUserId) {
+      return NextResponse.json({ error: 'Forbidden: You do not own the property tied to this lease.' }, { status: 403 });
+    }
+
+    // Execute safe operations in an isolated atomic database transaction boundary
     await db.transaction(async (tx) => {
-      // Step A: Revert the room status flag back to available
       if (targetLease.roomId) {
         await tx
           .update(rooms)
           .set({ status: 'available' })
           .where(eq(rooms.id, targetLease.roomId));
       }
-
-      // Step B: Permanently delete the primary lease row ledger log
       await tx.delete(leases).where(eq(leases.id, leaseId));
     });
 

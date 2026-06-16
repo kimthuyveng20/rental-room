@@ -38,7 +38,6 @@ declare module "next-auth/jwt" {
 const db = getDb();
 
 export const authOptions: NextAuthOptions = {
-  // 1. Link NextAuth to your Drizzle database
   adapter: DrizzleAdapter(db) as Adapter,
   
   providers: [
@@ -46,24 +45,10 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      // Allows seamless linking if a user signs up via email first, then Google
       allowDangerousEmailAccountLinking: true, 
     }),
 
-    // EMAIL (MAGIC LINK / VERIFICATION CODE) PROVIDER
-    EmailProvider({
-      server: {
-        host: process.env.EMAIL_SERVER_HOST,
-        port: Number(process.env.EMAIL_SERVER_PORT),
-        auth: {
-          user: process.env.EMAIL_SERVER_USER,
-          pass: process.env.EMAIL_SERVER_PASSWORD,
-        },
-      },
-      from: process.env.EMAIL_FROM,
-    }),
-
-    // EXISTING CREDENTIALS PROVIDER
+    // CREDENTIALS PROVIDER
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -83,8 +68,13 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials");
         }
 
-        const isValid = await compare(credentials.password, user.passwordHash);
+        // Security check: Make sure they verified their code before letting them log in!
+        // Assuming your verify route changes a column like `emailVerified` or `isVerified`
+        if (!user.emailVerified) {
+          throw new Error("Please verify your email code before logging in.");
+        }
 
+        const isValid = await compare(credentials.password, user.passwordHash);
         if (!isValid) {
           throw new Error("Invalid credentials");
         }
@@ -100,12 +90,10 @@ export const authOptions: NextAuthOptions = {
   ],
   
   callbacks: {
-    // 2. Fetch or sync user profile information (like roles) into the token/session
-    async jwt({ token, user, trigger, session }) {
-      // On initial sign in, copy user details to JWT
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = user.role || "tenant"; // Fallback to safe default
+        token.role = user.role || "tenant";
       }
       return token;
     },
@@ -119,10 +107,8 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: "/auth/login",
-    verifyRequest: "/auth/verify-request", // Custom page showing "Check your email"
   },
   session: {
-    // Explicitly enforce JWT strategy, which works perfectly alongside database adapters in NextAuth
     strategy: "jwt",
   },
   secret: process.env.AUTH_SECRET,
