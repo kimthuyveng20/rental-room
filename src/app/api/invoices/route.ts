@@ -134,14 +134,22 @@ export async function GET() {
               )
             )
         ),
-        with: {
-          lease: {
-            with: {
-              room: { with: { property: true } },
-              tenant: { with: { user: true } },
+       with: {
+        lease: {
+          with: {
+            room: { 
+              with: { 
+                property: {
+                  with: {
+                    owner: true // <--- Add this to fetch user data
+                  }
+                } 
+              } 
             },
+            tenant: { with: { user: true } },
           },
         },
+      },
       });
 
     } else if (userRole === 'tenant') {
@@ -175,13 +183,14 @@ export async function GET() {
     const formattedData = await Promise.all(
       allInvoices.map(async (invoice) => {
         const khqrUrl = invoice.lease?.room?.property?.khqrImageUrl;
+        const property = invoice.lease?.room?.property;
+        const owner = property?.owner;
         let presignedKhqrUrl = null;
 
         if (khqrUrl?.trim()) {
           const key = s3Service.extractKeyFromUrl(khqrUrl);
           presignedKhqrUrl = await s3Service.getPresignedUrl(key);
         }
-
         return {
           ...invoice,
           lease: {
@@ -191,13 +200,15 @@ export async function GET() {
               property: {
                 ...invoice.lease?.room?.property,
                 khqrImageUrl: presignedKhqrUrl,
+                name: owner?.name || 'N/A',
+                email: owner.email || 'N/A',
               },
             },
           },
         };
       })
     );
-
+   
     return NextResponse.json(formattedData);
   } catch (error) {
     console.error('BACKEND_INVOICE_CRASH:', error);

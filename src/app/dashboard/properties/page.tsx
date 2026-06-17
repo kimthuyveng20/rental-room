@@ -414,20 +414,28 @@ export default function PropertiesPage() {
         <AlertDialog open={deleteTargetId !== null} onOpenChange={(val) => !val && setDeleteTargetId(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete Property Portfolio?</AlertDialogTitle>
+              <AlertDialogTitle>{t("deleteDialog.title")}</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you absolutely sure? Doing this will permanently delete this property listing along with all rooms linked inside its registry. This action cannot be undone.
+                {t("deleteDialog.description")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={deletingLoader}>Cancel</AlertDialogCancel>
+              <AlertDialogCancel disabled={deletingLoader}>
+                {t("deleteDialog.cancel")}
+              </AlertDialogCancel>
               <AlertDialogAction 
                 onClick={(e) => { e.preventDefault(); handleDeleteExecute(); }} 
                 className="bg-destructive hover:bg-destructive/90"
                 disabled={deletingLoader}
               >
-                {deletingLoader ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-                Remove Property
+                {deletingLoader ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-1" /> 
+                    {t("deleteDialog.confirmLoading")}
+                  </>
+                ) : (
+                  t("deleteDialog.confirm")
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

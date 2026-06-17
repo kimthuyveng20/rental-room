@@ -332,32 +332,33 @@ export default function RoomsPage() {
   return (
     <DashboardLayout userRole="owner">
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold py-2">{t('title')}</h1>
-            <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
+  {/* Header and Add Button */}
+  <div className="flex justify-between items-center">
+    <div>
+      <h1 className="text-3xl font-bold py-2">{t('title')}</h1>
+      <p className="text-muted-foreground mt-1">{t('subtitle')}</p>
+    </div>
+
+    <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) setErrorMessage(null); }}>
+      <DialogTrigger asChild>
+        <Button className="gap-2">
+          <Plus className="w-4 h-4" /> {t('addRoom')}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('registerAsset')}</DialogTitle>
+        </DialogHeader>
+
+        {errorMessage && (
+          <div className="bg-destructive/15 text-destructive p-3 rounded-md text-sm flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{errorMessage}</span>
           </div>
-          
-          <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) setErrorMessage(null); }}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="w-4 h-4" /> {t('addRoom')}
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{t('registerAsset')}</DialogTitle>
-              </DialogHeader>
+        )}
 
-              {errorMessage && (
-                <div className="bg-destructive/15 text-destructive p-3 rounded-md text-sm flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  <span>{errorMessage}</span>
-                </div>
-              )}
-
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField
                     control={form.control}
                     name="propertyId"
@@ -473,40 +474,41 @@ export default function RoomsPage() {
                     )}
                   />
 
-                  <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                    {form.formState.isSubmitting ? t('saving') : t('saveLog')}
-                  </Button>
-                </form>
-              </Form>
-            </DialogContent>
-          </Dialog>
-        </div>
+            <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+              {form.formState.isSubmitting ? t('saving') : t('saveLog')}
+            </Button>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  </div>
 
-        {/* Mutation Error Feedback Banner */}
-        {errorMessage && !open && (
-          <div className="bg-destructive/15 text-destructive p-4 rounded-md text-sm flex items-center gap-2 mb-4">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
+  {/* Mutation Error Feedback Banner */}
+  {errorMessage && !open && (
+    <div className="bg-destructive/15 text-destructive p-4 rounded-md text-sm flex items-center gap-2 mb-4">
+      <AlertCircle className="w-5 h-5 flex-shrink-0" />
+      <span>{errorMessage}</span>
+    </div>
+  )}
 
-        {/* Database Grid Table Layout */}
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-muted-foreground font-medium text-xs uppercase tracking-wider">
-                    <th className="text-left py-3 px-4 font-semibold">{t('thLocation')}</th>
-                    <th className="text-left py-3 px-4 font-semibold">{t('thType')}</th>
-                    <th className="text-left py-3 px-4 font-semibold">{t('thCapacity')}</th>
-                    <th className="text-left py-3 px-4 font-semibold">{t('thPrice')}</th>
-                    <th className="text-left py-3 px-4 font-semibold">{t('thOccupant')}</th>
-                    <th className="text-left py-3 px-4 font-semibold">{t('thState')}</th>
-                    <th className="text-left py-3 px-4 font-semibold text-center">{t('thActions')}</th>
-                  </tr>
-                </thead>
-                <tbody>
+  <Card>
+    <CardContent className="pt-6 space-y-4">
+      
+      {/* --- DESKTOP VIEW: Table (Hidden on small screens) --- */}
+      <div className="hidden md:block overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-muted-foreground font-medium text-xs uppercase tracking-wider">
+              <th className="text-left py-3 px-4">{t('thLocation')}</th>
+              <th className="text-left py-3 px-4">{t('thType')}</th>
+              <th className="text-left py-3 px-4">{t('thCapacity')}</th>
+              <th className="text-left py-3 px-4">{t('thPrice')}</th>
+              <th className="text-left py-3 px-4">{t('thOccupant')}</th>
+              <th className="text-left py-3 px-4">{t('thState')}</th>
+              <th className="text-center py-3 px-4">{t('thActions')}</th>
+            </tr>
+          </thead>
+          <tbody>
                   {currentPagedRooms.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="text-center py-8 text-muted-foreground">
@@ -519,19 +521,19 @@ export default function RoomsPage() {
                       const occupantIdentityString = activeLeaseInstance?.tenant?.user?.name || null;
 
                       return (
-                        <tr key={room.id} className="border-b hover:bg-muted/50 transition-colors">
+              <tr key={room.id} className="border-b hover:bg-muted/50 transition-colors">
                           <td className="py-3 px-4 font-medium text-foreground">
-                            <div className="flex flex-col">
+                  <div className="flex flex-col">
                               <span>#{room.roomNumber}</span>
-                              <span className="text-xs text-muted-foreground flex items-center gap-1 font-normal">
-                                <Building2 className="w-3 h-3" /> {room.property?.name || t('unassignedAsset')}
-                              </span>
-                            </div>
-                          </td>
+                    <span className="text-xs text-muted-foreground flex items-center gap-1 font-normal">
+                      <Building2 className="w-3 h-3" /> {room.property?.name || t('unassignedAsset')}
+                    </span>
+                  </div>
+                </td>
                           <td className="py-3 px-4 text-foreground capitalize">
                             {t(room.type) || room.type}
-                          </td>
-                          <td className="py-3 px-4">
+                </td>
+                <td className="py-3 px-4">
                             <span className="flex items-center gap-1 font-mono text-xs text-foreground">
                               <Users className="w-3 h-3 text-muted-foreground" /> Max {room.capacity}
                             </span>
@@ -550,36 +552,67 @@ export default function RoomsPage() {
                             <Badge className={`${getStatusColor(room.status)} shadow-none border-none capitalize`}>
                               {t(room.status) || room.status}
                             </Badge>
-                          </td>
-                          <td className="py-3 px-4 text-center">
+                </td>
+                <td className="py-3 px-4 text-center">
                             <Button 
                               variant="ghost" 
                               size="sm" 
                               className="text-destructive hover:bg-destructive/10"
                               onClick={() => setDeleteTargetId(room.id)}
                             >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </td>
-                        </tr>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </td>
+              </tr>
                       );
                     })
                   )}
-                </tbody>
-              </table>
+          </tbody>
+        </table>
+      </div>
+
+      {/* --- MOBILE VIEW: Card Stack (Visible only on small screens) --- */}
+      <div className="md:hidden space-y-4">
+        {currentPagedRooms.map((room) => (
+          <div key={room.id} className="border rounded-lg p-4 bg-card shadow-sm space-y-3">
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="font-bold text-lg">#{room.roomNumber}</div>
+                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Building2 className="w-3 h-3" /> {room.property?.name}
+                </div>
+              </div>
+              <Badge className={`${getStatusColor(room.status)} shadow-none border-none`}>{t(room.status)}</Badge>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div><span className="text-muted-foreground">{t('thType')}:</span> {t(room.type)}</div>
+              <div><span className="text-muted-foreground">{t('thCapacity')}:</span> {room.capacity}</div>
+              <div className="col-span-2"><span className="text-muted-foreground">{t('thPrice')}:</span> ${Number(room.pricePerMonth).toFixed(2)}</div>
+              <div className="col-span-2">
+                <span className="text-muted-foreground">{t('thOccupant')}: </span>
+                {room.leases?.[0]?.tenant?.user?.name || <span className="italic">{t('vacantRegistry')}</span>}
+              </div>
             </div>
 
-            {/* Pagination Integration Module */}
-            {rooms.length > itemsPerPage && (
+            <Button variant="outline" size="sm" className="w-full text-destructive" onClick={() => setDeleteTargetId(room.id)}>
+              <Trash2 className="w-4 h-4 mr-2" /> {t('thActions')}
+            </Button>
+          </div>
+        ))}
+      </div>
+
+      {/* Pagination */}
+      {rooms.length > itemsPerPage && (
               <div className="pt-2">
                 <Pagination>
-                  <PaginationContent>
-                    <PaginationItem>
+          <PaginationContent>
+            <PaginationItem>
                       <PaginationPrevious 
                         onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                         className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
                       />
-                    </PaginationItem>
+            </PaginationItem>
                     
                     {Array.from({ length: totalPages }, (_, idx) => idx + 1).map((pageNumber) => (
                       <PaginationItem key={pageNumber}>
@@ -593,19 +626,19 @@ export default function RoomsPage() {
                       </PaginationItem>
                     ))}
 
-                    <PaginationItem>
+            <PaginationItem>
                       <PaginationNext 
                         onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                         className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
                       />
-                    </PaginationItem>
-                  </PaginationContent>
-                </Pagination>
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      )}
+    </CardContent>
+  </Card>
+</div>
       
       {/* Absolute Modal Context Layer for Room Discard Operations */}
       <AlertDialog open={deleteTargetId !== null} onOpenChange={(val) => !val && setDeleteTargetId(null)}>

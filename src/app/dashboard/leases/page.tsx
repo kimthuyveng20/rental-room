@@ -341,20 +341,28 @@ export default function LeasesPage() {
         <AlertDialog open={deleteTargetId !== null} onOpenChange={(val) => !val && setDeleteTargetId(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Terminate Lease Agreement?</AlertDialogTitle>
+              <AlertDialogTitle>{t("deleteDialog.title")}</AlertDialogTitle>
               <AlertDialogDescription>
-                This will completely purge this lease entry. The assigned room will be immediately returned to "available" status. This action cannot be reversed.
+                {t("deleteDialog.description")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={deletingLoader}>Cancel</AlertDialogCancel>
+              <AlertDialogCancel disabled={deletingLoader}>
+                {t("deleteDialog.cancel")}
+              </AlertDialogCancel>
               <AlertDialogAction 
                 onClick={(e) => { e.preventDefault(); handleDeleteExecute(); }} 
                 className="bg-destructive hover:bg-destructive/90"
                 disabled={deletingLoader}
               >
-                {deletingLoader ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-                Remove Lease
+                {deletingLoader ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-1" /> 
+                    {t("deleteDialog.confirmLoading")}
+                  </>
+                ) : (
+                  t("deleteDialog.confirm")
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -362,84 +370,78 @@ export default function LeasesPage() {
 
         {/* Leases Output Matrix Area */}
         <div className="space-y-4">
-          {leases.length === 0 ? (
-            <div className="text-center py-12 border rounded-lg bg-background">
-              <FileText className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="text-muted-foreground">{t("noLeases")}</p>
+  {leases.length === 0 ? (
+    <div className="text-center py-12 border rounded-lg bg-background">
+      <FileText className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
+      <p className="text-muted-foreground">{t("noLeases")}</p>
+    </div>
+  ) : (
+    leases.map((lease) => {
+      const daysRemaining = getDaysRemaining(lease.endDate);
+      const isExpiringSoon = lease.status === 'active' && daysRemaining > 0 && daysRemaining < 30;
+      const statusKey = isExpiringSoon ? 'expiringSoon' : lease.status;
+
+      return (
+        <Card key={lease.id} className="hover:shadow-md transition-shadow">
+          <CardContent className="pt-6">
+            {/* Mobile-first layout: Column stack on small, row on medium+ */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              
+              {/* Tenant & Room Info */}
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-lg bg-muted flex-shrink-0">
+                  <FileText className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm md:text-base">
+                    {lease.tenant?.user?.name || t("unknownTenant")}
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                     • Room {lease.room?.roomNumber || "N/A"}
+                  </p>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                    <Calendar className="w-3 h-3" />
+                    {format(new Date(lease.startDate), 'MMM dd')} - {format(new Date(lease.endDate), 'MMM dd, yyyy')}
+                  </div>
+                </div>
+              </div>
+
+              {/* Financials & Status - Adjusted for Mobile */}
+              <div className="flex items-center justify-between md:justify-end gap-6 border-t pt-4 md:border-t-0 md:pt-0">
+                <div className="text-right">
+                  <p className="font-semibold text-sm">${Number(lease.monthlyRent).toFixed(2)}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase">{t("monthlyRent")}</p>
+                </div>
+
+                <div className="text-right">
+                  {lease.status === 'active' && daysRemaining > 0 ? (
+                    <p className="text-xs font-medium text-green-600 mb-1 whitespace-nowrap">
+                      {daysRemaining} {t("daysLeft")}
+                    </p>
+                  ) : (
+                    <p className="text-xs font-medium text-destructive mb-1">{t("agreementFinished")}</p>
+                  )}
+                  <Badge className={`${getStatusColor(isExpiringSoon ? 'expiring-soon' : lease.status)} text-[10px]`}>
+                    {t(statusKey) || lease.status}
+                  </Badge>
+                </div>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0"
+                  onClick={() => setDeleteTargetId(lease.id)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
-          ) : (
-            leases.map((lease) => {
-              const daysRemaining = getDaysRemaining(lease.endDate);
-              const isExpiringSoon = lease.status === 'active' && daysRemaining > 0 && daysRemaining < 30;
-              const statusKey = isExpiringSoon ? 'expiringSoon' : lease.status;
-
-              return (
-                <Card key={lease.id} className="hover:shadow-md transition-shadow relative group">
-                  <CardContent className="pt-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <div className="p-3 rounded-lg bg-muted">
-                            <FileText className="w-6 h-6 text-muted-foreground" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold">
-                              {lease.tenant?.user?.name || t("unknownTenant")}
-                              <span className="text-muted-foreground text-sm ml-2">
-                                • Room {lease.room?.roomNumber || "N/A"}
-                              </span>
-                            </h3>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                              <div className="flex items-center gap-1">
-                                <Calendar className="w-4 h-4" />
-                                {format(new Date(lease.startDate), 'MMM dd, yyyy')} -{' '}
-                                {format(new Date(lease.endDate), 'MMM dd, yyyy')}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Display Financial Data metrics + Delete Action Hooks directly on hover zone overlay */}
-                      <div className="flex items-center gap-6 ml-4">
-                        <div className="text-right">
-                          <p className="font-semibold">${Number(lease.monthlyRent).toFixed(2)}</p>
-                          <p className="text-xs text-muted-foreground">{t("monthlyRent")}</p>
-                        </div>
-
-                        <div className="text-right min-w-[100px]">
-                          {lease.status === 'active' && daysRemaining > 0 ? (
-                            <p className="text-sm font-medium text-green-600 mb-1">
-                              {daysRemaining} {t("daysLeft")}
-                            </p>
-                          ) : (
-                            <p className="text-sm font-medium text-destructive mb-1">
-                              {t("agreementFinished")}
-                            </p>
-                          )}
-                          <Badge className={getStatusColor(isExpiringSoon ? 'expiring-soon' : lease.status)}>
-                            {t(statusKey) || lease.status}
-                          </Badge>
-                        </div>
-
-                        {/* Interactive Deletion Trigger Box Button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => setDeleteTargetId(lease.id)}
-                          title="Delete Lease"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
-        </div>
+          </CardContent>
+        </Card>
+      );
+    })
+  )}
+</div>
       </div>
     </DashboardLayout>
   );

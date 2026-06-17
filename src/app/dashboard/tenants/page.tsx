@@ -314,20 +314,28 @@ export default function TenantsPage() {
         <AlertDialog open={deleteTargetId !== null} onOpenChange={(val) => !val && setDeleteTargetId(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogTitle>{t("deleteDialog.title")}</AlertDialogTitle>
               <AlertDialogDescription>
-                This will permanently delete this tenant's login profile, phone details, and any uploaded identification document links from the storage ledger.
+                {t("deleteDialog.description")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel disabled={deletingLoader}>Cancel</AlertDialogCancel>
+              <AlertDialogCancel disabled={deletingLoader}>
+                {t("deleteDialog.cancel")}
+              </AlertDialogCancel>
               <AlertDialogAction 
                 onClick={(e) => { e.preventDefault(); handleDeleteExecute(); }} 
                 className="bg-destructive hover:bg-destructive/90"
                 disabled={deletingLoader}
               >
-                {deletingLoader ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : null}
-                Delete Tenant
+                {deletingLoader ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-1" /> 
+                    {t("deleteDialog.confirmLoading")}
+                  </>
+                ) : (
+                  t("deleteDialog.confirm")
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

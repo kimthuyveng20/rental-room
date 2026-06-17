@@ -58,7 +58,14 @@
   "errStart": "Start date is required",
   "errEnd": "End date is required",
   "errRent": "Rent amount must be greater than 0",
-  "errDeposit": "Deposit cannot be negative"
+  "errDeposit": "Deposit cannot be negative",
+  "deleteDialog": {
+    "title": "Terminate Lease Agreement?",
+    "description": "This will completely purge this lease entry. The assigned room will be immediately returned to \"available\" status. This action cannot be reversed.",
+    "cancel": "Cancel",
+    "confirm": "Remove Lease",
+    "confirmLoading": "Removing..."
+  }
   },
   "Room": {
     "title": "Rooms",
@@ -281,6 +288,13 @@
         "zipCode": "10001",
         "description": "Enter asset parameter structural notes..."
       }
+    },
+    "deleteDialog": {
+    "title": "Delete Property Portfolio?",
+    "description": "Are you absolutely sure? Doing this will permanently delete this property listing along with all rooms linked inside its registry. This action cannot be undone.",
+    "cancel": "Cancel",
+    "confirm": "Remove Property",
+    "confirmLoading": "Removing..."
     }
   },
   "tenants": {
@@ -333,7 +347,14 @@
         "phone": "+855 (0) 000-0000",
         "emergencyContact": "Spouse / Parent Name & Number"
       }
-    }
+    },
+    "deleteDialog": {
+    "title": "Are you absolutely sure?",
+    "description": "This will permanently delete this tenant's login profile, phone details, and any uploaded identification document links from the storage ledger.",
+    "cancel": "Cancel",
+    "confirm": "Delete Tenant",
+    "confirmLoading": "Deleting..."
+  }
   },
   "payments": {
     "title": "Payments Ledger",

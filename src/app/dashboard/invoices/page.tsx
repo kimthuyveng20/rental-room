@@ -51,6 +51,7 @@ interface ActiveLease {
     property?: {
       id: number;
       name: string;
+      email: string;
       khqrImageUrl?: string | null;
     };
   };
@@ -396,49 +397,49 @@ export default function InvoicesPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6 print:hidden">
-        {/* Top Control Block Row */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight py-2">{t('title')}</h1>
-            <p className="text-muted-foreground mt-0.5">{t('subtitle')}</p>
-          </div>
+       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+  {/* Title Section */}
+  <div>
+    <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{t('title')}</h1>
+    <p className="text-sm text-muted-foreground mt-0.5 md:text-base">{t('subtitle')}</p>
+  </div>
              <div className="flex items-end gap-3">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-muted-foreground">
                   Billing Month
                 </label>
 
-                <Input
-                  type="month"
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="w-[180px]"
-                />
-              </div>
+        <Input
+          type="month"
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+          className="w-full sm:w-[180px]"
+        />
+      </div>
 
               <Button
                 variant="outline"
                 onClick={() => setSelectedMonth("")}
               >
-                Clear
-              </Button>
-            </div>
+        Clear
+      </Button>
+    </div>
           <div className="flex items-center gap-2">
             {/* Conditional "Print Selected" Action Trigger bar */}
-            {selectedInvoiceIds.length > 0 && (
+      {selectedInvoiceIds.length > 0 && (
               <Button variant="outline" onClick={triggerBulkPrintSequence} className="font-semibold border-primary/40 text-primary hover:bg-primary/5 transition-all">
                 <Printer className="w-4 h-4 mr-1.5 stroke-[2.5]" />
                 {t('printSelectedBtn') || `Print Selected (${selectedInvoiceIds.length})`}
-              </Button>
-            )}
+        </Button>
+      )}
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogTrigger asChild>
                 <Button className="font-semibold">
                   <Plus className="w-4 h-4 mr-1.5 stroke-[2.5]" />
-                  {t('createInvoiceBtn')}
-                </Button>
-              </DialogTrigger>
+            {t('createInvoiceBtn')}
+          </Button>
+        </DialogTrigger>
               <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{t('dialogTitle')}</DialogTitle>
@@ -454,7 +455,7 @@ export default function InvoicesPage() {
                         </option>
                       ))}
                     </select>
-                  </div>
+    </div>
 
                   {selectedLeaseDetails && (
                     <div className="bg-muted/40 p-3 rounded-lg text-sm grid grid-cols-2 gap-2 border">
@@ -516,8 +517,8 @@ export default function InvoicesPage() {
                 </form>
               </DialogContent>
             </Dialog>
-          </div>
-        </div>
+  </div>
+</div>
 
         {/* Live Ledger Data Table Grid */}
         {paginatedInvoices.length === 0 ? (
@@ -528,7 +529,7 @@ export default function InvoicesPage() {
         ) : (
           <Card className="shadow-sm rounded-xl overflow-hidden border">
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm text-left">
                   <thead className="text-xs uppercase bg-muted/60 border-b text-muted-foreground font-semibold tracking-wider">
                     <tr>
@@ -647,6 +648,41 @@ export default function InvoicesPage() {
                 </span>
                 invoices
               </div>
+              </div>
+
+
+              {/* --- MOBILE VIEW: Card List (Visible only on small screens) --- */}
+              <div className="md:hidden divide-y">
+                {paginatedInvoices.map((invoice) => {
+                  const { grandTotal } = calculateTotals(invoice);
+                  return (
+                    <div key={invoice.id} className="p-4 space-y-3 bg-card hover:bg-muted/20 transition-colors">
+                      <div className="flex justify-between items-center">
+                        <input type="checkbox" className="rounded border-gray-300 accent-primary w-4 h-4" checked={selectedInvoiceIds.includes(invoice.id)} onChange={() => handleSelectInvoiceToggle(invoice.id)} />
+                        <span className="font-mono font-bold text-xs text-primary">#INV-{String(invoice.id).padStart(5, '0')}</span>
+                      </div>
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-semibold text-sm">{invoice.lease?.tenant?.user?.name || t('unknownTenant')}</div>
+                          <div className="text-xs text-muted-foreground">{invoice.billingPeriod}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-sm">${grandTotal.toFixed(2)}</div>
+                          <div className="text-[10px] text-muted-foreground">{(grandTotal * USD_TO_RIEL).toLocaleString()} ៛</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-dashed">
+                        <div className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-bold ${getStatusBadgeStyle(invoice.status)}`}>
+                          {t(`status_${invoice.status}`)}
+                        </div>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openDetailsPanel(invoice)}><Eye className="w-4 h-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => triggerBrowserPrintSequence(invoice)}><Printer className="w-4 h-4" /></Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -797,7 +833,7 @@ export default function InvoicesPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDeleteInvoice}>
+            <AlertDialogAction className=" hover:bg-destructive/90" onClick={handleDeleteInvoice}>
               {t('deleteConfirmBtn')}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -805,7 +841,7 @@ export default function InvoicesPage() {
       </AlertDialog>
 
       {/* HIGH-CONTRAST INVOICE PRINT VIEW - Supporting Single and Multi Print maps */}
-          {invoicesToPrint.length > 0 && (
+      {invoicesToPrint.length > 0 && (
         <>
           <style>{`
             @media print {
@@ -822,6 +858,8 @@ export default function InvoicesPage() {
               const totalUSD = details.grandTotal;
               const totalRiel = totalUSD * USD_TO_RIEL;
               const khqrUrl = invoice.lease?.room?.property?.khqrImageUrl;
+              const ownerName = invoice.lease?.room?.property?.name;
+              const ownerEmail =  invoice.lease?.room?.property?.email;
 
               return (
                 <div
@@ -830,15 +868,29 @@ export default function InvoicesPage() {
                   style={{ breakAfter: index === invoicesToPrint.length - 1 ? 'auto' : 'page' }}
                 >
                   <div>
-                    <div className="flex flex-col items-center text-center border-b-2 border-black pb-2 gap-1">
-                      <div className="space-y-2">
-                        <h2 className="text-sm font-black uppercase">{t('printHeader')}</h2>
-                        <p className="text-[8px] text-gray-600 font-mono">{t('serialId')}: #INV-{String(invoice.id).padStart(5, '0')}</p>
+                    <div className="border-b-2 border-black pb-2 gap-1">
+                      <div className="flex flex-col items-center text-center">
+                        <div className="space-y-2">
+                          <h2 className="text-sm font-black uppercase">{t('printHeader')}</h2>
+                          <p className="text-[8px] text-gray-600 font-mono">{t('serialId')}: #INV-{String(invoice.id).padStart(5, '0')}</p>
+                        </div>
                       </div>
-                      <div className="space-y-1 ">
+                      <div className=" flex justify-between items-center">
+                       <div className="space-y-1 pt-2">
                         <strong className="text-[9px] block font-black uppercase">{t('companyName')}</strong>
-                        <p className="text-[7px] text-gray-500 font-mono">kimthuyveng20@gmail.com</p>
-                        <p className="text-[7px] text-gray-500 font-mono">096 92 63064</p>
+                        <div className="text-start">
+                          <p className="text-[7px] text-gray-500 font-mono">Name : {ownerName}</p>
+                          <p className="text-[7px] text-gray-500 font-mono">Email: {ownerEmail}</p>
+                          <p className="text-[7px] text-gray-500 font-mono">Phone: 096 92 63064</p>
+                        </div>
+                      </div>
+                      <div className="">
+                         <img
+                            src="/rental-logo.svg"
+                            alt="KHQR Payment"
+                            className="w-18 h-18 object-contain bg-white"
+                          />
+                      </div>
                       </div>
                     </div>
 
