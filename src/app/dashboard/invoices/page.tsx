@@ -805,128 +805,135 @@ export default function InvoicesPage() {
       </AlertDialog>
 
       {/* HIGH-CONTRAST INVOICE PRINT VIEW - Supporting Single and Multi Print maps */}
-      {invoicesToPrint.length > 0 && (
-        <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:text-black z-50 bg-white text-black font-sans min-h-screen text-xs leading-relaxed">
-          {invoicesToPrint.map((invoice, index) => {
-            const details = calculateTotals(invoice);
+          {invoicesToPrint.length > 0 && (
+        <>
+          <style>{`
+            @media print {
+              @page {
+                size: 80mm auto;
+                margin: 0mm;
+              }
+            }
+          `}</style>
 
-            const totalUSD = details.grandTotal;
-            const totalRiel = totalUSD * USD_TO_RIEL;
-            const khqrUrl = invoice.lease?.room?.property?.khqrImageUrl;
-            return (
-              <div 
-                key={invoice.id} 
-                className="p-12 min-h-screen flex flex-col justify-between"
-                style={{ breakAfter: index === invoicesToPrint.length - 1 ? 'auto' : 'page' }}
-              >
-                <div>
-                  <div className="flex justify-between items-start border-b-4 border-black pb-8">
-                    <div className="space-y-1">
-                      <h2 className="text-4xl font-black tracking-tight text-black uppercase">{t('printHeader')}</h2>
-                      <p className="text-gray-600 font-mono text-sm tracking-widest">{t('serialId')}: #INV-{String(invoice.id).padStart(5, '0')}</p>
-                    </div>
-                    <div className="text-right space-y-0.5">
-                      <strong className="text-base text-black block font-black uppercase tracking-wider">{t('companyName')}</strong>
-                      <p className="text-gray-500 font-mono">kimthuyveng20@gmail.com</p>
-                      <p className="text-gray-500 font-mono">096 92 63064</p>
-                    </div>
-                  </div>
+          <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:text-black z-50 bg-white text-black font-sans w-[80mm] mx-auto text-[9px] leading-tight">
+            {invoicesToPrint.map((invoice, index) => {
+              const details = calculateTotals(invoice);
+              const totalUSD = details.grandTotal;
+              const totalRiel = totalUSD * USD_TO_RIEL;
+              const khqrUrl = invoice.lease?.room?.property?.khqrImageUrl;
 
-                  <div className="grid grid-cols-2 gap-12 my-10 bg-gray-100 p-6 rounded-lg border border-gray-300">
-                    <div className="space-y-1.5">
-                      <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">{t('printBillTo')}</span>
-                      <strong className="text-lg text-black block font-black tracking-tight">{invoice.lease?.tenant?.user?.name}</strong>
-                      <p className="text-gray-700 text-xs font-medium">{t('printAssignedRoom')}: <strong className="text-black font-bold">{t('roomShort')} {invoice.lease?.room?.roomNumber}</strong></p>
-                    </div>
-                    <div className="space-y-1.5 text-right">
-                      <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block">{t('printStatementSummary')}</span>
-                      <p className="text-gray-700 text-xs">{t('printTargetCycle')}: <strong>{invoice.billingPeriod}</strong></p>
-                      <p className="text-gray-700 text-xs">{t('thStatus')}: <strong>{t(`status_${invoice.status}`).toUpperCase()}</strong></p>
-                      <p className="text-black font-black text-xs border-t border-gray-300 pt-1 mt-1 inline-block">{t('printDeadline')}: {new Date(invoice.dueDate).toLocaleDateString()}</p>
-                    </div>
-                  </div>
-
-                  <table className="w-full my-8 text-left border-collapse">
-                    <thead>
-                      <tr className="border-b-2 border-black text-[10px] uppercase text-black font-black tracking-wider">
-                        <th className="py-2.5">{t('printThItems')}</th>
-                        <th className="py-2.5 text-right">{t('printThMeter')}</th>
-                        <th className="py-2.5 text-right">{t('printThConsumed')}</th>
-                        <th className="py-2.5 text-right">{t('printThRate')}</th>
-                        <th className="py-2.5 text-right">{t('printThSubtotal')}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-300 text-gray-900 text-xs font-medium">
-                      <tr>
-                        <td className="py-4 font-bold text-black">{t('baseRoomRent')}</td>
-                        <td className="py-4 text-right text-gray-400">--</td>
-                        <td className="py-4 text-right">{t('printMonthCycle')}</td>
-                        <td className="py-4 text-right">${details.rent.toFixed(2)}</td>
-                        <td className="py-4 text-right font-bold text-black">${details.rent.toFixed(2)}</td>
-                      </tr>
-                      <tr>
-                        <td className="py-4 font-bold text-black">{t('waterSupplyItem')}</td>
-                        <td className="py-4 text-right text-gray-500 font-mono text-[11px]">({invoice.waterLastMonth} ➔ {invoice.waterThisMonth})</td>
-                        <td className="py-4 text-right">{Math.max(0, invoice.waterThisMonth - invoice.waterLastMonth)} {t('printUnits')}</td>
-                        <td className="py-4 text-right">${parseFloat(invoice.waterRate).toFixed(2)}</td>
-                        <td className="py-4 text-right font-bold text-black">${details.water.toFixed(2)}</td>
-                      </tr>
-                      <tr>
-                        <td className="py-4 font-bold text-black">{t('electricityEnergyItem')}</td>
-                        <td className="py-4 text-right text-gray-500 font-mono text-[11px]">({invoice.electricityLastMonth} ➔ {invoice.electricityThisMonth})</td>
-                        <td className="py-4 text-right">{Math.max(0, invoice.electricityThisMonth - invoice.electricityLastMonth)} kWh</td>
-                        <td className="py-4 text-right">${parseFloat(invoice.electricityRate).toFixed(2)}</td>
-                        <td className="py-4 text-right font-bold text-black">${details.electricity.toFixed(2)}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="flex justify-between mt-12 border-t-4 border-black pt-6">
+              return (
+                <div
+                  key={invoice.id}
+                  className="p-2 flex flex-col"
+                  style={{ breakAfter: index === invoicesToPrint.length - 1 ? 'auto' : 'page' }}
+                >
                   <div>
-                      {khqrUrl && (
-                        <div className="flex flex-col items-start">
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                            {t('scanToPay')}
-                          </p>
+                    <div className="flex flex-col items-center text-center border-b-2 border-black pb-2 gap-1">
+                      <div className="space-y-2">
+                        <h2 className="text-sm font-black uppercase">{t('printHeader')}</h2>
+                        <p className="text-[8px] text-gray-600 font-mono">{t('serialId')}: #INV-{String(invoice.id).padStart(5, '0')}</p>
+                      </div>
+                      <div className="space-y-1 ">
+                        <strong className="text-[9px] block font-black uppercase">{t('companyName')}</strong>
+                        <p className="text-[7px] text-gray-500 font-mono">kimthuyveng20@gmail.com</p>
+                        <p className="text-[7px] text-gray-500 font-mono">096 92 63064</p>
+                      </div>
+                    </div>
 
-                          <div className="p-1 bg-white border rounded-lg shadow-sm hover:shadow-md transition-shadow">
-                            <img
-                              src={khqrUrl}
-                              alt="KHQR Payment"
-                              className="w-28 h-28 object-contain bg-white" 
-                            />
+                    <div className="flex flex-col gap-1 my-2 border-b border-dashed border-gray-400 pb-2 text-[8px]">
+                      <div className='space-y-1'>
+                        <span className="uppercase text-gray-500 font-bold block text-[7px]">{t('printBillTo')}</span>
+                        <strong className="block font-black">{invoice.lease?.tenant?.user?.name}</strong>
+                        <p className="text-gray-700">{t('printAssignedRoom')}: <strong className="text-black font-bold">{t('roomShort')} {invoice.lease?.room?.roomNumber}</strong></p>
+                      </div>
+                      <div className='space-y-1'>
+                        <span className="uppercase text-gray-500 font-bold block text-[7px]">{t('printStatementSummary')}</span>
+                        <p className="text-gray-700">{t('printTargetCycle')}: <strong>{invoice.billingPeriod}</strong></p>
+                        <p className="text-gray-700">{t('thStatus')}: <strong>{t(`status_${invoice.status}`).toUpperCase()}</strong></p>
+                        <p className="font-black pt-1 mt-1 border-t border-gray-300">{t('printDeadline')}: {new Date(invoice.dueDate).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+
+                    <table className="w-full my-2 text-left border-collapse text-[7.5px]">
+                      <thead>
+                        <tr className="border-b border-black uppercase font-black">
+                          <th className="py-1">{t('printThItems')}</th>
+                          <th className="py-1 text-right">{t('printThMeter')}</th>
+                          <th className="py-1 text-right">{t('printThConsumed')}</th>
+                          <th className="py-1 text-right">{t('printThRate')}</th>
+                          <th className="py-1 text-right">{t('printThSubtotal')}</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-300 text-gray-900">
+                        <tr>
+                          <td className="py-1 font-bold text-black">{t('baseRoomRent')}</td>
+                          <td className="py-1 text-right text-gray-400">--</td>
+                          <td className="py-1 text-right">{t('printMonthCycle')}</td>
+                          <td className="py-1 text-right">${details.rent.toFixed(2)}</td>
+                          <td className="py-1 text-right font-bold text-black">${details.rent.toFixed(2)}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-1 font-bold text-black">{t('waterSupplyItem')}</td>
+                          <td className="py-1 text-right text-gray-500 font-mono">({invoice.waterLastMonth}➔{invoice.waterThisMonth})</td>
+                          <td className="py-1 text-right">{Math.max(0, invoice.waterThisMonth - invoice.waterLastMonth)} {t('printUnits')}</td>
+                          <td className="py-1 text-right">${parseFloat(invoice.waterRate).toFixed(2)}</td>
+                          <td className="py-1 text-right font-bold text-black">${details.water.toFixed(2)}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-1 font-bold text-black">{t('electricityEnergyItem')}</td>
+                          <td className="py-1 text-right text-gray-500 font-mono">({invoice.electricityLastMonth}➔{invoice.electricityThisMonth})</td>
+                          <td className="py-1 text-right">{Math.max(0, invoice.electricityThisMonth - invoice.electricityLastMonth)} kWh</td>
+                          <td className="py-1 text-right">${parseFloat(invoice.electricityRate).toFixed(2)}</td>
+                          <td className="py-1 text-right font-bold text-black">${details.electricity.toFixed(2)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-2 mt-2 border-t border-black pt-2">
+                    {khqrUrl && (
+                      <div className="flex flex-col items-center">
+                        <p className="text-[7px] font-semibold uppercase tracking-wider mb-1">
+                          {t('scanToPay')}
+                        </p>
+                        <div className="p-1 bg-white border rounded">
+                          <img
+                            src={khqrUrl}
+                            alt="KHQR Payment"
+                            className="w-20 h-20 object-contain bg-white"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="w-full space-y-1 text-right">
+                      <div className="flex justify-between text-[8px] text-gray-600 font-semibold">
+                        <span>{t('printSubtotal')}:</span>
+                        <div className="text-right">
+                          <div>${details.grandTotal.toFixed(2)}</div>
+                          <div className="text-[7px] text-gray-500">
+                            {(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
                           </div>
                         </div>
-                      )}
-                    </div>
-                  <div className="w-72 space-y-2 text-right">
-                    
-                    < div className="flex justify-between text-xs text-gray-600 font-semibold">
-                      <span>{t('printSubtotal')}:</span>
-                      <div className="text-right">
-                        <div>${details.grandTotal.toFixed(2)}</div>
-                        <div className="text-xs text-gray-500">
-                          {(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
-                        </div>
                       </div>
-                    </div>
-                    <div className="flex justify-between text-xl font-black border-t-2 pt-3 border-black text-black">
-                      <span>{t('printTotalDue')}:</span>
-                      <div className="text-right">
-                        <div>${details.grandTotal.toFixed(2)}</div>
-                        <div className="text-xs text-gray-500">
-                          {(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
+                      <div className="flex justify-between text-sm font-black border-t pt-1 border-black text-black">
+                        <span>{t('printTotalDue')}:</span>
+                        <div className="text-right">
+                          <div>${details.grandTotal.toFixed(2)}</div>
+                          <div className="text-[7px] text-gray-500">
+                            {(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                   
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </DashboardLayout>
   );
