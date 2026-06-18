@@ -17,7 +17,7 @@ services:
     container_name: rental_room_ui
     restart: unless-stopped
     ports:
-      - "80:3000"  # Maps standard HTTP port 80 on AWS to Next.js port 3000
+      - "3000:3000"  # Maps standard HTTP port 80 on AWS to Next.js port 3000
     environment:
       - DATABASE_URL=postgresql://${DB_USER:-kimthuy}:${DB_PASSWORD:-kimthuy1997}@postgres:5432/${DB_NAME:-rental_room}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
