@@ -42,6 +42,7 @@ import {
   PaginationPrevious,
 } from "@/src/components/ui/pagination" 
 import React from 'react';
+import { unitPerEletrict, unitPerWater, USD_TO_RIEL } from '@/src/lib/utils';
 
 interface ActiveLease {
   id: number;
@@ -67,6 +68,8 @@ interface DBInvoice {
   leaseId: number;
   billingPeriod: string;
   dueDate: string;
+  startDate: string;
+  endDate: string;
   waterLastMonth: number;
   waterThisMonth: number;
   waterRate: string;
@@ -80,7 +83,6 @@ interface DBInvoice {
 
 export default function InvoicesPage() {
   const t = useTranslations('Invoices'); 
-  const USD_TO_RIEL = 4000;
   const [invoices, setInvoices] = useState<DBInvoice[]>([]);
   const [activeLeases, setActiveLeases] = useState<ActiveLease[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,12 +134,14 @@ export default function InvoicesPage() {
     leaseId: '',
     waterLastMonth: '',
     waterThisMonth: '',
-    waterRate: '0.625',
+    waterRate: unitPerWater,
     electricityLastMonth: '',
     electricityThisMonth: '',
-    electricityRate: '0.375',
+    electricityRate: unitPerEletrict,
     billingPeriod: '',
     dueDate: '',
+    startDate: '',
+    endDate: '',
   });
 
   const selectedLeaseDetails = activeLeases.find(l => l.id === Number(formData.leaseId));
@@ -186,12 +190,14 @@ export default function InvoicesPage() {
         leaseId: '',
         waterLastMonth: '',
         waterThisMonth: '',
-        waterRate: '2.50',
+        waterRate: unitPerWater,
         electricityLastMonth: '',
         electricityThisMonth: '',
-        electricityRate: '0.25',
+        electricityRate: unitPerEletrict,
         billingPeriod: '',
         dueDate: '',
+        startDate: '',
+        endDate: '',
       });
       setIsDialogOpen(false);
       await syncInvoiceModuleMatrix();
@@ -455,7 +461,7 @@ export default function InvoicesPage() {
                         </option>
                       ))}
                     </select>
-    </div>
+                   </div>
 
                   {selectedLeaseDetails && (
                     <div className="bg-muted/40 p-3 rounded-lg text-sm grid grid-cols-2 gap-2 border">
@@ -476,6 +482,17 @@ export default function InvoicesPage() {
                     </div>
                   </div>
 
+                   <div className="grid grid-cols-2 gap-4 border-t pt-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">{t('startDate')}</label>
+                      <Input name="startDate" type='date' placeholder="" value={formData.startDate} onChange={handleInputChange} required />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground">{t('endDate')}</label>
+                      <Input name="endDate" type="date" value={formData.endDate} onChange={handleInputChange} required />
+                    </div>
+                  </div>
+
                   {/* Water Section */}
                   <div className="grid grid-cols-3 gap-4 border-t pt-3">
                     <div className="space-y-1">
@@ -489,7 +506,7 @@ export default function InvoicesPage() {
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-muted-foreground">{t('waterRate')} ??</label>
                       <Input name="waterRate" type="number" step="0.01" value={formData.waterRate} onChange={handleInputChange} required />
-                      <span className='pl-2 text-xs font-semibold text-muted-foreground'>0.625 ($) ~ 2500 (៛)</span>
+                      <span className='pl-2 text-xs font-semibold text-muted-foreground'>{unitPerWater} ($) ~ 2500 (៛)</span>
                     </div>
                   </div>
 
@@ -506,7 +523,7 @@ export default function InvoicesPage() {
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-muted-foreground">{t('electricityRate')}</label>
                       <Input name="electricityRate" type="number" step="0.01" value={formData.electricityRate} onChange={handleInputChange} required />
-                      <span className='pl-2 text-xs font-semibold text-muted-foreground'>0.375 ($) ~ 1500 (៛)</span>
+                      <span className='pl-2 text-xs font-semibold text-muted-foreground'>{unitPerEletrict} ($) ~ 1500 (៛)</span>
                     </div>
                   </div>
 
@@ -747,7 +764,7 @@ export default function InvoicesPage() {
                 <div className="flex items-center gap-2 text-xs font-mono text-primary ">
                   <Hash className="w-3.5 h-3.5" /> INV-{String(selectedInvoice.id).padStart(5, '0')}
                 </div>
-                <SheetTitle className="text-2xl font-black tracking-tight mt-1">{t('drawerTitle')}</SheetTitle>
+                <SheetTitle className="text-2xl  tracking-tight mt-1">{t('drawerTitle')}</SheetTitle>
                 <SheetDescription>{t('drawerSubtitle')}</SheetDescription>
               </SheetHeader>
 
@@ -801,9 +818,9 @@ export default function InvoicesPage() {
                     <span className="">${activeDetails.electricity.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between items-center pt-4 border-t-2 border-foreground text-base">
-                    <span className="font-black">{t('totalBillDue')}</span>
+                    <span className="">{t('totalBillDue')}</span>
                     <div className="text-right">
-                      <div className="font-black text-primary">
+                      <div className=" text-primary">
                         ${activeDetails.grandTotal.toFixed(2)}
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -854,8 +871,9 @@ export default function InvoicesPage() {
                 print-color-adjust: exact !important;
               }
               /* Force all text to be solid black */
-              .text-gray-500,text-gray-400, .text-gray-600, .text-gray-700 {
+              .text-gray-500, .text-gray-400, .text-gray-600, .text-gray-700, .text-black , .had{
                 color: #000000 !important;
+                font-weight: normal !important;
               }
               /* Ensure the container fits comfortably */
               .w-\[80mm\] {
@@ -884,13 +902,13 @@ export default function InvoicesPage() {
                     <div className="border-b-2 border-black pb-2 gap-1">
                       <div className="flex flex-col items-center text-center">
                         <div className="space-y-2">
-                          <h2 className="text-sm font-black uppercase">{t('printHeader')}</h2>
+                          <h2 className="text-sm  uppercase">{t('printHeader')}</h2>
                           <p className="text-[12px] text-gray-600 font-mono">{t('serialId')}: #INV-{String(invoice.id).padStart(5, '0')}</p>
                         </div>
                       </div>
                       <div className=" flex justify-between items-center">
                        <div className="space-y-2 pt-2">
-                        <strong className="text-[12px] block font-black uppercase">{t('companyName')}</strong>
+                        <p className="text-[12px] block  uppercase">{t('companyName')}</p>
                         <div className="text-start text-[12px]">
                           <p className=" text-gray-500 font-mono">{t('name')} : {ownerName}</p>
                           <p className=" text-gray-500 font-mono">{t('email')}: {ownerEmail}</p>
@@ -904,32 +922,33 @@ export default function InvoicesPage() {
                       <div className='space-y-2 text-[12px]'>
                         <span className="uppercase text-gray-500  block ">{t('printBillTo')}</span>
                         <p className="block">{t('name')}: {invoice.lease?.tenant?.user?.name}</p>
-                        <p className="text-gray-700">{t('printAssignedRoom')}: <strong className="text-black ">{t('roomShort')} {invoice.lease?.room?.roomNumber}</strong></p>
+                        <p className="text-gray-700">{t('printAssignedRoom')}: {t('roomShort')} {invoice.lease?.room?.roomNumber}</p>
                       </div>
                       <div className='space-y-2 text-[12px]'>
                         <span className="uppercase text-gray-500  block ">{t('printStatementSummary')}</span>
-                        <p className="text-gray-700">{t('printTargetCycle')}: <strong>{invoice.billingPeriod}</strong></p>
-                        <p className="text-gray-700">{t('thStatus')}: <strong>{t(`status_${invoice.status}`).toUpperCase()}</strong></p>
-                        <p className="font-black pt-1 mt-1 border-t border-gray-300">{t('printDeadline')}: {new Date(invoice.dueDate).toLocaleDateString()}</p>
+                        <p className="text-gray-700">{t('printTargetCycle')}: {invoice.billingPeriod}</p>
+                        <p className="text-gray-700">{t('thStatus')}: {t(`status_${invoice.status}`).toUpperCase()}</p>
+                        <p className=" pt-1 mt-1 border-t border-gray-300">{t('printDeadline')}: {new Date(invoice.dueDate).toLocaleDateString()}</p>
+                        <p className=" pt-1 mt-1 border-t border-gray-300">{t('startDate')}: {new Date(invoice.startDate).toLocaleDateString()}  {"-"} {t('endDate')}: {new Date(invoice.endDate).toLocaleDateString()}</p>
                       </div>
                     </div>
 
                     <table className="w-full my-2 text-left border-collapse text-[12px]">
                       <thead>
-                        <tr className="border-b border-black uppercase font-black">
-                          <th className="py-1">{t('printThItems')}</th>
-                          <th className="py-1 text-right">{t('printThMeter')}</th>
-                          <th className="py-1 text-right">{t('printThConsumed')}</th>
-                          <th className="py-1 text-right">{t('printThRate')}</th>
-                          <th className="py-1 text-right">{t('printThSubtotal')}</th>
+                        <tr className="border-b border-black uppercase ">
+                          <th className="py-1 had">{t('printThItems')}</th>
+                          <th className="py-1 text-right had">{t('printThMeter')}</th>
+                          <th className="py-1 text-right had">{t('printThConsumed')}</th>
+                          <th className="py-1 text-right had">{t('printThRate')}</th>
+                          <th className="py-1 text-right had">{t('printThSubtotal')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-300 text-gray-900">
                         <tr>
-                          <td className="py-1  text-black">{t('baseRoomRent')}</td>
+                          <td className="py-1">{t('baseRoomRent')}</td>
                           <td className="py-1 text-right text-gray-500">--</td>
-                          <td className="py-1 text-right text-gray-500">{t('printMonthCycle')}</td>
-                          <td className="py-1 text-right text-gray-500">${details.rent.toFixed(2)}</td>
+                          <td className="py-1 text-right text-gray-500 ">{t('printMonthCycle')}</td>
+                          <td className="py-1 text-right text-gray-500 ">${details.rent.toFixed(2)}</td>
                           <td className="py-1 text-right  text-black">${details.rent.toFixed(2)}</td>
                         </tr>
                         <tr>
@@ -962,7 +981,7 @@ export default function InvoicesPage() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex justify-between font-black border-t pt-1 border-black text-black">
+                    <div className="flex justify-between  border-t pt-1 border-black text-black">
                       <span>{t('printTotalDue')}:</span>
                       <div className="text-right">
                         <div className='text-[12px]'>${details.grandTotal.toFixed(2)}</div>
@@ -976,7 +995,7 @@ export default function InvoicesPage() {
                 {/* 2. QR CODE AT THE BOTTOM */}
                 {khqrUrl && (
                   <div className="flex flex-col items-center mt-4">
-                    <p className="text-[12px] font-semibold uppercase tracking-wider mb-1">
+                    <p className="text-[12px]  uppercase tracking-wider mb-1">
                       {t('scanToPay')}
                     </p>
                     <div className="p-1  border rounded">
@@ -993,9 +1012,9 @@ export default function InvoicesPage() {
                  </div>
                   {/* --- Informational Notes --- */}
                     <div className="text-[10px] text-gray-600 my-2 space-y-0.5 border-t border-dashed border-gray-300 pt-2">
-                      <p className="font-bold text-black uppercase">{t('printNotes')}:</p>
-                      <p>• {t('waterSupplyItem')}: 1m³ = 2,500៛ ($0.625)</p>
-                      <p>• {t('electricityEnergyItem')}: 1kWh = 1,500៛ ($0.375)</p>
+                      <p className=" text-black uppercase">{t('printNotes')}:</p>
+                      <p>• {t('waterSupplyItem')}: 1m³ = 2,500៛ (${unitPerWater})</p>
+                      <p>• {t('electricityEnergyItem')}: 1kWh = 1,500៛ (${unitPerEletrict})</p>
                       <p>• {t('exchangeRate')}: $1 = {USD_TO_RIEL.toLocaleString()}៛</p>
                     </div>
                 </div>

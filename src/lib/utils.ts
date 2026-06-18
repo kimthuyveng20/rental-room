@@ -6,3 +6,6 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 
+export const unitPerWater =  0.63 ;
+export const unitPerEletrict =0.38;
+export const USD_TO_RIEL = 4000;

@@ -132,6 +132,8 @@
     "printNotes": "Notes",
     "exchangeRate": "Exchange Rate",
     "dueDate": "Due Date",
+    "startDate": "Start Date",
+    "endDate": "End Date",
     "scanToPay": "Scan KHQR to Pay",
     "waterRate": "Water Rate (per m³)",
     "electricityRate": "Electricity Rate (per kWh)",

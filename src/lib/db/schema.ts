@@ -301,6 +301,8 @@ export const invoices = pgTable('invoices', {
   status: invoiceStatusEnum('status').default('pending').notNull(),
   billingPeriod: varchar('billing_period', { length: 50 }).notNull(),
   dueDate: date('due_date').notNull(),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
    paymentReference: varchar(
     'payment_reference',
     { length: 255 }

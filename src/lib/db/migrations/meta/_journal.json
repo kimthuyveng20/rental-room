@@ -29,6 +29,13 @@
       "when": 1781614933054,
       "tag": "0003_wandering_scorpion",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781791542554,
+      "tag": "0004_graceful_terrax",
+      "breakpoints": true
     }
   ]
 }

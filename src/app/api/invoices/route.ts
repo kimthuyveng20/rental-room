@@ -31,6 +31,8 @@ export async function POST(req: Request) {
       electricityRate,
       billingPeriod,
       dueDate,
+      startDate,
+      endDate,
     } = body;
 
     const activeLease = await db.query.leases.findFirst({
@@ -83,6 +85,8 @@ export async function POST(req: Request) {
       status: 'pending',
       billingPeriod,
       dueDate: new Date(dueDate).toISOString().split('T')[0],
+      startDate: new Date(startDate).toISOString().split('T')[0],
+      endDate: new Date(endDate).toISOString().split('T')[0],
     }).returning();
 
     return NextResponse.json(newInvoice, { status: 201 });
