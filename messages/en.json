@@ -126,6 +126,9 @@
   },
   "Invoices": {
     "title": "Invoices Log",
+    "name":"Full Name",
+    "email":"Email Address",
+    "phone":"Phone Number",
     "dueDate": "Due Date",
     "scanToPay": "Scan KHQR to Pay",
     "waterRate": "Water Rate (per m³)",
@@ -135,7 +138,7 @@
     "dialogTitle": "Issue New Invoice from Active Leases",
     "labelSelectTenant": "Select Target Tenant & Lease Context",
     "chooseTenantPlaceholder": "Choose Tenant (Room)",
-    "roomShort": "Room",
+    "roomShort": "Room Number",
     "tenant": "Tenant",
     "room": "Room Unit",
     "placeholderBillingPeriod": "Cycle period",

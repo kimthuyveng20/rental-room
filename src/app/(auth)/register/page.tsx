@@ -198,7 +198,7 @@ export default function SignUp() {
         {step === 'register' ? (
           <>
             {/* Google Signup Shortcut */}
-            <Button
+            {/* <Button
               type="button"
               variant="outline"
               className="w-full flex items-center justify-center gap-2 hover:bg-muted/50 transition-colors"
@@ -213,7 +213,7 @@ export default function SignUp() {
                 </svg>
               )}
               {isGoogleLoading ? 'Connecting...' : 'Sign up with Google'}
-            </Button>
+            </Button> */}
 
             <div className="relative flex items-center py-1">
               <div className="flex-grow border-t border-muted/60" />

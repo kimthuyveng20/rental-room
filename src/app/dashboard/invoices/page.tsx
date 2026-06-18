@@ -400,7 +400,7 @@ export default function InvoicesPage() {
        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
   {/* Title Section */}
   <div>
-    <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{t('title')}</h1>
+    <h1 className="text-2xl  tracking-tight md:text-3xl">{t('title')}</h1>
     <p className="text-sm text-muted-foreground mt-0.5 md:text-base">{t('subtitle')}</p>
   </div>
              <div className="flex items-end gap-3">
@@ -563,7 +563,7 @@ export default function InvoicesPage() {
                               onChange={() => handleSelectInvoiceToggle(invoice.id)}
                             />
                           </td>
-                          <td className="px-6 py-4 font-mono font-bold text-xs text-primary">
+                          <td className="px-6 py-4 font-mono  text-xs text-primary">
                             #INV-{String(invoice.id).padStart(5, '0')}
                           </td>
                           <td className="px-6 py-4">
@@ -572,7 +572,7 @@ export default function InvoicesPage() {
                           </td>
                           <td className="px-6 py-4 text-muted-foreground font-medium">{invoice.billingPeriod}</td>
                           <td className="px-6 py-4">
-                            <div className="font-bold">
+                            <div className="">
                               ${grandTotal.toFixed(2)}
                             </div>
                             <div className="text-xs text-muted-foreground">
@@ -659,7 +659,7 @@ export default function InvoicesPage() {
                     <div key={invoice.id} className="p-4 space-y-3 bg-card hover:bg-muted/20 transition-colors">
                       <div className="flex justify-between items-center">
                         <input type="checkbox" className="rounded border-gray-300 accent-primary w-4 h-4" checked={selectedInvoiceIds.includes(invoice.id)} onChange={() => handleSelectInvoiceToggle(invoice.id)} />
-                        <span className="font-mono font-bold text-xs text-primary">#INV-{String(invoice.id).padStart(5, '0')}</span>
+                        <span className="font-mono  text-xs text-primary">#INV-{String(invoice.id).padStart(5, '0')}</span>
                       </div>
                       <div className="flex justify-between items-start">
                         <div>
@@ -667,12 +667,12 @@ export default function InvoicesPage() {
                           <div className="text-xs text-muted-foreground">{invoice.billingPeriod}</div>
                         </div>
                         <div className="text-right">
-                          <div className="font-bold text-sm">${grandTotal.toFixed(2)}</div>
+                          <div className=" text-sm">${grandTotal.toFixed(2)}</div>
                           <div className="text-[10px] text-muted-foreground">{(grandTotal * USD_TO_RIEL).toLocaleString()} ៛</div>
                         </div>
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t border-dashed">
-                        <div className={`px-2 py-0.5 rounded-full text-[10px] uppercase font-bold ${getStatusBadgeStyle(invoice.status)}`}>
+                        <div className={`px-2 py-0.5 rounded-full text-[10px] uppercase  ${getStatusBadgeStyle(invoice.status)}`}>
                           {t(`status_${invoice.status}`)}
                         </div>
                         <div className="flex gap-1">
@@ -744,7 +744,7 @@ export default function InvoicesPage() {
           {selectedInvoice && (
             <div className="space-y-6 pt-4 font-sans">
               <SheetHeader>
-                <div className="flex items-center gap-2 text-xs font-mono text-primary font-bold">
+                <div className="flex items-center gap-2 text-xs font-mono text-primary ">
                   <Hash className="w-3.5 h-3.5" /> INV-{String(selectedInvoice.id).padStart(5, '0')}
                 </div>
                 <SheetTitle className="text-2xl font-black tracking-tight mt-1">{t('drawerTitle')}</SheetTitle>
@@ -754,12 +754,12 @@ export default function InvoicesPage() {
               <div className="p-4 rounded-xl border bg-muted/40 space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-muted-foreground font-medium">{t('thStatus')}</span>
-                  <Badge className={`capitalize font-bold text-xs ${getStatusBadgeStyle(selectedInvoice.status)}`}>{t(`status_${selectedInvoice.status}`)}</Badge>
+                  <Badge className={`capitalize  text-xs ${getStatusBadgeStyle(selectedInvoice.status)}`}>{t(`status_${selectedInvoice.status}`)}</Badge>
                 </div>
                 <div className="border-t border-muted pt-3 flex items-start gap-3">
                   <User className="w-4 h-4 mt-0.5 text-muted-foreground" />
                   <div className="text-sm">
-                    <strong className="block font-bold">{selectedInvoice.lease?.tenant?.user?.name}</strong>
+                    <strong className="block ">{selectedInvoice.lease?.tenant?.user?.name}</strong>
                     <span className="text-xs text-muted-foreground">{t('room')}: {t('roomShort')} {selectedInvoice.lease?.room?.roomNumber}</span>
                   </div>
                 </div>
@@ -767,20 +767,20 @@ export default function InvoicesPage() {
                   <Calendar className="w-4 h-4 mt-0.5 text-muted-foreground" />
                   <div className="text-sm">
                     <span className="block font-medium text-xs text-muted-foreground">{t('cyclePeriodLabel')}: {selectedInvoice.billingPeriod}</span>
-                    <span className="block font-bold text-xs text-rose-500 mt-0.5">{t('dueDateLabel')}: {new Date(selectedInvoice.dueDate).toLocaleDateString()}</span>
+                    <span className="block  text-xs text-rose-500 mt-0.5">{t('dueDateLabel')}: {new Date(selectedInvoice.dueDate).toLocaleDateString()}</span>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{t('itemizedBreakdownTitle')}</h3>
+                <h3 className="text-xs  uppercase tracking-wider text-muted-foreground">{t('itemizedBreakdownTitle')}</h3>
                 <div className="border rounded-xl p-4 divide-y space-y-3 bg-card shadow-sm text-sm">
                   <div className="flex justify-between items-center pt-1">
                     <div>
                       <span className="font-semibold block">{t('baseRoomRent')}</span>
                       <span className="text-xs text-muted-foreground">{t('baseRoomRentSub')}</span>
                     </div>
-                    <span className="font-bold">${activeDetails.rent.toFixed(2)}</span>
+                    <span className="">${activeDetails.rent.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between items-center pt-3">
                     <div>
@@ -789,7 +789,7 @@ export default function InvoicesPage() {
                         ({selectedInvoice.waterThisMonth} - {selectedInvoice.waterLastMonth}) × ${selectedInvoice.waterRate}
                       </span>
                     </div>
-                    <span className="font-bold">${activeDetails.water.toFixed(2)}</span>
+                    <span className="">${activeDetails.water.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between items-center pt-3">
                     <div>
@@ -798,7 +798,7 @@ export default function InvoicesPage() {
                         ({selectedInvoice.electricityThisMonth} - {selectedInvoice.electricityLastMonth}) × ${selectedInvoice.electricityRate}
                       </span>
                     </div>
-                    <span className="font-bold">${activeDetails.electricity.toFixed(2)}</span>
+                    <span className="">${activeDetails.electricity.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between items-center pt-4 border-t-2 border-foreground text-base">
                     <span className="font-black">{t('totalBillDue')}</span>
@@ -845,9 +845,22 @@ export default function InvoicesPage() {
         <>
           <style>{`
             @media print {
-              @page {
+             @page {
                 size: 80mm auto;
-                margin: 0mm;
+                margin: 0;
+              }
+              body {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              /* Force all text to be solid black */
+              .text-gray-500,text-gray-400, .text-gray-600, .text-gray-700 {
+                color: #000000 !important;
+              }
+              /* Ensure the container fits comfortably */
+              .w-\[80mm\] {
+                width: 76mm !important;
+                margin: 0 auto;
               }
             }
           `}</style>
@@ -864,7 +877,7 @@ export default function InvoicesPage() {
               return (
                 <div
                   key={invoice.id}
-                  className="p-2 flex flex-col"
+                  className="p-2 flex flex-col invoice-containe"
                   style={{ breakAfter: index === invoicesToPrint.length - 1 ? 'auto' : 'page' }}
                 >
                   <div>
@@ -872,43 +885,36 @@ export default function InvoicesPage() {
                       <div className="flex flex-col items-center text-center">
                         <div className="space-y-2">
                           <h2 className="text-sm font-black uppercase">{t('printHeader')}</h2>
-                          <p className="text-[8px] text-gray-600 font-mono">{t('serialId')}: #INV-{String(invoice.id).padStart(5, '0')}</p>
+                          <p className="text-[10px] text-gray-600 font-mono">{t('serialId')}: #INV-{String(invoice.id).padStart(5, '0')}</p>
                         </div>
                       </div>
                       <div className=" flex justify-between items-center">
                        <div className="space-y-1 pt-2">
-                        <strong className="text-[9px] block font-black uppercase">{t('companyName')}</strong>
-                        <div className="text-start">
-                          <p className="text-[7px] text-gray-500 font-mono">Name : {ownerName}</p>
-                          <p className="text-[7px] text-gray-500 font-mono">Email: {ownerEmail}</p>
-                          <p className="text-[7px] text-gray-500 font-mono">Phone: 096 92 63064</p>
+                        <strong className="text-[10px] block font-black uppercase">{t('companyName')}</strong>
+                        <div className="text-start text-[10px]">
+                          <p className=" text-gray-500 font-mono">{t('name')} : {ownerName}</p>
+                          <p className=" text-gray-500 font-mono">{t('email')}: {ownerEmail}</p>
+                          <p className=" text-gray-500 font-mono">{t('phone')}: 096 92 63064</p>
                         </div>
-                      </div>
-                      <div className="">
-                         <img
-                            src="/rental-logo.svg"
-                            alt="KHQR Payment"
-                            className="w-18 h-18 object-contain bg-white"
-                          />
                       </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-1 my-2 border-b border-dashed border-gray-400 pb-2 text-[8px]">
+                    <div className="flex flex-col gap-1 my-2 border-b border-dashed border-gray-400 pb-2 text-[10px]">
                       <div className='space-y-1'>
-                        <span className="uppercase text-gray-500 font-bold block text-[7px]">{t('printBillTo')}</span>
-                        <strong className="block font-black">{invoice.lease?.tenant?.user?.name}</strong>
-                        <p className="text-gray-700">{t('printAssignedRoom')}: <strong className="text-black font-bold">{t('roomShort')} {invoice.lease?.room?.roomNumber}</strong></p>
+                        <span className="uppercase text-gray-500  block text-[10px]">{t('printBillTo')}</span>
+                        <p className="block">{t('name')}: {invoice.lease?.tenant?.user?.name}</p>
+                        <p className="text-gray-700">{t('printAssignedRoom')}: <strong className="text-black ">{t('roomShort')} {invoice.lease?.room?.roomNumber}</strong></p>
                       </div>
                       <div className='space-y-1'>
-                        <span className="uppercase text-gray-500 font-bold block text-[7px]">{t('printStatementSummary')}</span>
+                        <span className="uppercase text-gray-500  block text-[10px]">{t('printStatementSummary')}</span>
                         <p className="text-gray-700">{t('printTargetCycle')}: <strong>{invoice.billingPeriod}</strong></p>
                         <p className="text-gray-700">{t('thStatus')}: <strong>{t(`status_${invoice.status}`).toUpperCase()}</strong></p>
                         <p className="font-black pt-1 mt-1 border-t border-gray-300">{t('printDeadline')}: {new Date(invoice.dueDate).toLocaleDateString()}</p>
                       </div>
                     </div>
 
-                    <table className="w-full my-2 text-left border-collapse text-[7.5px]">
+                    <table className="w-full my-2 text-left border-collapse text-[10px]">
                       <thead>
                         <tr className="border-b border-black uppercase font-black">
                           <th className="py-1">{t('printThItems')}</th>
@@ -920,67 +926,71 @@ export default function InvoicesPage() {
                       </thead>
                       <tbody className="divide-y divide-gray-300 text-gray-900">
                         <tr>
-                          <td className="py-1 font-bold text-black">{t('baseRoomRent')}</td>
-                          <td className="py-1 text-right text-gray-400">--</td>
-                          <td className="py-1 text-right">{t('printMonthCycle')}</td>
-                          <td className="py-1 text-right">${details.rent.toFixed(2)}</td>
-                          <td className="py-1 text-right font-bold text-black">${details.rent.toFixed(2)}</td>
+                          <td className="py-1  text-black">{t('baseRoomRent')}</td>
+                          <td className="py-1 text-right text-gray-500">--</td>
+                          <td className="py-1 text-right text-gray-500">{t('printMonthCycle')}</td>
+                          <td className="py-1 text-right text-gray-500">${details.rent.toFixed(2)}</td>
+                          <td className="py-1 text-right  text-black">${details.rent.toFixed(2)}</td>
                         </tr>
                         <tr>
-                          <td className="py-1 font-bold text-black">{t('waterSupplyItem')}</td>
-                          <td className="py-1 text-right text-gray-500 font-mono">({invoice.waterLastMonth}➔{invoice.waterThisMonth})</td>
-                          <td className="py-1 text-right">{Math.max(0, invoice.waterThisMonth - invoice.waterLastMonth)} {t('printUnits')}</td>
-                          <td className="py-1 text-right">${parseFloat(invoice.waterRate).toFixed(2)}</td>
-                          <td className="py-1 text-right font-bold text-black">${details.water.toFixed(2)}</td>
+                          <td className="py-1  text-black">{t('waterSupplyItem')}</td>
+                          <td className="py-1 text-right text-gray-500 font-mono">({invoice.waterLastMonth}{t('printUnits')}➔{invoice.waterThisMonth}{t('printUnits')})</td>
+                          <td className="py-1 text-right text-gray-500">{Math.max(0, invoice.waterThisMonth - invoice.waterLastMonth)} {t('printUnits')}</td>
+                          <td className="py-1 text-right text-gray-500">${parseFloat(invoice.waterRate).toFixed(2)}</td>
+                          <td className="py-1 text-right  text-black">${details.water.toFixed(2)}</td>
                         </tr>
                         <tr>
-                          <td className="py-1 font-bold text-black">{t('electricityEnergyItem')}</td>
-                          <td className="py-1 text-right text-gray-500 font-mono">({invoice.electricityLastMonth}➔{invoice.electricityThisMonth})</td>
-                          <td className="py-1 text-right">{Math.max(0, invoice.electricityThisMonth - invoice.electricityLastMonth)} kWh</td>
-                          <td className="py-1 text-right">${parseFloat(invoice.electricityRate).toFixed(2)}</td>
-                          <td className="py-1 text-right font-bold text-black">${details.electricity.toFixed(2)}</td>
+                          <td className="py-1  text-black">{t('electricityEnergyItem')}</td>
+                          <td className="py-1 text-right text-gray-500 font-mono">({invoice.electricityLastMonth}kWh➔{invoice.electricityThisMonth}kWh)</td>
+                          <td className="py-1 text-right text-gray-500">{Math.max(0, invoice.electricityThisMonth - invoice.electricityLastMonth)} kWh</td>
+                          <td className="py-1 text-right text-gray-500">${parseFloat(invoice.electricityRate).toFixed(2)}</td>
+                          <td className="py-1 text-right  text-black">${details.electricity.toFixed(2)}</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
 
-                  <div className="flex flex-col items-center gap-2 mt-2 border-t border-black pt-2">
-                    {khqrUrl && (
-                      <div className="flex flex-col items-center">
-                        <p className="text-[7px] font-semibold uppercase tracking-wider mb-1">
-                          {t('scanToPay')}
-                        </p>
-                        <div className="p-1 bg-white border rounded">
-                          <img
-                            src={khqrUrl}
-                            alt="KHQR Payment"
-                            className="w-20 h-20 object-contain bg-white"
-                          />
+                 <div className="flex flex-col items-center gap-2 mt-2 border-t border-black pt-2">
+                  {/* 1. MOVED TOTALS TO THE TOP */}
+                  <div className="w-full space-y-1 text-right">
+                    <div className="flex justify-between text-[10px] text-gray-600 ">
+                      <span>{t('printSubtotal')}:</span>
+                      <div className="text-right">
+                        <div className='text-[10px]'>${details.grandTotal.toFixed(2)}</div>
+                        <div className="text-[10px] text-gray-500">
+                          {(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
                         </div>
                       </div>
-                    )}
-
-                    <div className="w-full space-y-1 text-right">
-                      <div className="flex justify-between text-[8px] text-gray-600 font-semibold">
-                        <span>{t('printSubtotal')}:</span>
-                        <div className="text-right">
-                          <div>${details.grandTotal.toFixed(2)}</div>
-                          <div className="text-[7px] text-gray-500">
-                            {(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex justify-between text-sm font-black border-t pt-1 border-black text-black">
-                        <span>{t('printTotalDue')}:</span>
-                        <div className="text-right">
-                          <div>${details.grandTotal.toFixed(2)}</div>
-                          <div className="text-[7px] text-gray-500">
-                            {(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
-                          </div>
+                    </div>
+                    <div className="flex justify-between font-black border-t pt-1 border-black text-black">
+                      <span>{t('printTotalDue')}:</span>
+                      <div className="text-right">
+                        <div className='text-[10px]'>${details.grandTotal.toFixed(2)}</div>
+                        <div className="text-[10px] text-gray-500">
+                          {(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
                         </div>
                       </div>
                     </div>
                   </div>
+
+                {/* 2. QR CODE AT THE BOTTOM */}
+                {khqrUrl && (
+                  <div className="flex flex-col items-center mt-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-1">
+                      {t('scanToPay')}
+                    </p>
+                    <div className="p-1  border rounded">
+                      <img
+                        src={khqrUrl}
+                        alt="KHQR Payment"
+                        width={150}
+                        height={150}
+                        className="object-contain"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
                 </div>
               );
             })}

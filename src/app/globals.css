@@ -124,22 +124,3 @@
     @apply bg-background text-foreground;
   }
 }
-
-@media print {
-  @page {
-    size: 80mm auto;
-    margin: 2mm;
-  }
-
-  html,
-  body {
-    margin: 0;
-    padding: 0;
-    background: white;
-  }
-
-  img {
-    print-color-adjust: exact;
-    -webkit-print-color-adjust: exact;
-  }
-}
