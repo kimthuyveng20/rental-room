@@ -129,6 +129,8 @@
     "name":"Full Name",
     "email":"Email Address",
     "phone":"Phone Number",
+    "printNotes": "Notes",
+    "exchangeRate": "Exchange Rate",
     "dueDate": "Due Date",
     "scanToPay": "Scan KHQR to Pay",
     "waterRate": "Water Rate (per m³)",

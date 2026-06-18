@@ -668,11 +668,11 @@ export default function InvoicesPage() {
                         </div>
                         <div className="text-right">
                           <div className=" text-sm">${grandTotal.toFixed(2)}</div>
-                          <div className="text-[10px] text-muted-foreground">{(grandTotal * USD_TO_RIEL).toLocaleString()} ៛</div>
+                          <div className="text-[12px] text-muted-foreground">{(grandTotal * USD_TO_RIEL).toLocaleString()} ៛</div>
                         </div>
                       </div>
                       <div className="flex items-center justify-between pt-2 border-t border-dashed">
-                        <div className={`px-2 py-0.5 rounded-full text-[10px] uppercase  ${getStatusBadgeStyle(invoice.status)}`}>
+                        <div className={`px-2 py-0.5 rounded-full text-[12px] uppercase  ${getStatusBadgeStyle(invoice.status)}`}>
                           {t(`status_${invoice.status}`)}
                         </div>
                         <div className="flex gap-1">
@@ -865,7 +865,7 @@ export default function InvoicesPage() {
             }
           `}</style>
 
-          <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:text-black z-50 bg-white text-black font-sans w-[80mm] mx-auto text-[9px] leading-tight">
+          <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:text-black z-50 bg-white text-black font-sans w-[80mm] mx-auto text-[12px] leading-tight">
             {invoicesToPrint.map((invoice, index) => {
               const details = calculateTotals(invoice);
               const totalUSD = details.grandTotal;
@@ -877,7 +877,7 @@ export default function InvoicesPage() {
               return (
                 <div
                   key={invoice.id}
-                  className="p-2 flex flex-col invoice-containe"
+                  className="py-2 px-2 flex flex-col invoice-containe"
                   style={{ breakAfter: index === invoicesToPrint.length - 1 ? 'auto' : 'page' }}
                 >
                   <div>
@@ -885,13 +885,13 @@ export default function InvoicesPage() {
                       <div className="flex flex-col items-center text-center">
                         <div className="space-y-2">
                           <h2 className="text-sm font-black uppercase">{t('printHeader')}</h2>
-                          <p className="text-[10px] text-gray-600 font-mono">{t('serialId')}: #INV-{String(invoice.id).padStart(5, '0')}</p>
+                          <p className="text-[12px] text-gray-600 font-mono">{t('serialId')}: #INV-{String(invoice.id).padStart(5, '0')}</p>
                         </div>
                       </div>
                       <div className=" flex justify-between items-center">
-                       <div className="space-y-1 pt-2">
-                        <strong className="text-[10px] block font-black uppercase">{t('companyName')}</strong>
-                        <div className="text-start text-[10px]">
+                       <div className="space-y-2 pt-2">
+                        <strong className="text-[12px] block font-black uppercase">{t('companyName')}</strong>
+                        <div className="text-start text-[12px]">
                           <p className=" text-gray-500 font-mono">{t('name')} : {ownerName}</p>
                           <p className=" text-gray-500 font-mono">{t('email')}: {ownerEmail}</p>
                           <p className=" text-gray-500 font-mono">{t('phone')}: 096 92 63064</p>
@@ -900,21 +900,21 @@ export default function InvoicesPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-1 my-2 border-b border-dashed border-gray-400 pb-2 text-[10px]">
-                      <div className='space-y-1'>
-                        <span className="uppercase text-gray-500  block text-[10px]">{t('printBillTo')}</span>
+                    <div className="flex flex-col gap-2 my-2 border-b border-dashed border-gray-400 pb-2 text-[12px]">
+                      <div className='space-y-2 text-[12px]'>
+                        <span className="uppercase text-gray-500  block ">{t('printBillTo')}</span>
                         <p className="block">{t('name')}: {invoice.lease?.tenant?.user?.name}</p>
                         <p className="text-gray-700">{t('printAssignedRoom')}: <strong className="text-black ">{t('roomShort')} {invoice.lease?.room?.roomNumber}</strong></p>
                       </div>
-                      <div className='space-y-1'>
-                        <span className="uppercase text-gray-500  block text-[10px]">{t('printStatementSummary')}</span>
+                      <div className='space-y-2 text-[12px]'>
+                        <span className="uppercase text-gray-500  block ">{t('printStatementSummary')}</span>
                         <p className="text-gray-700">{t('printTargetCycle')}: <strong>{invoice.billingPeriod}</strong></p>
                         <p className="text-gray-700">{t('thStatus')}: <strong>{t(`status_${invoice.status}`).toUpperCase()}</strong></p>
                         <p className="font-black pt-1 mt-1 border-t border-gray-300">{t('printDeadline')}: {new Date(invoice.dueDate).toLocaleDateString()}</p>
                       </div>
                     </div>
 
-                    <table className="w-full my-2 text-left border-collapse text-[10px]">
+                    <table className="w-full my-2 text-left border-collapse text-[12px]">
                       <thead>
                         <tr className="border-b border-black uppercase font-black">
                           <th className="py-1">{t('printThItems')}</th>
@@ -935,14 +935,14 @@ export default function InvoicesPage() {
                         <tr>
                           <td className="py-1  text-black">{t('waterSupplyItem')}</td>
                           <td className="py-1 text-right text-gray-500 font-mono">({invoice.waterLastMonth}{t('printUnits')}➔{invoice.waterThisMonth}{t('printUnits')})</td>
-                          <td className="py-1 text-right text-gray-500">{Math.max(0, invoice.waterThisMonth - invoice.waterLastMonth)} {t('printUnits')}</td>
+                          <td className="py-1 text-right text-gray-500">{Math.max(0, invoice.waterThisMonth - invoice.waterLastMonth)}{t('printUnits')}</td>
                           <td className="py-1 text-right text-gray-500">${parseFloat(invoice.waterRate).toFixed(2)}</td>
                           <td className="py-1 text-right  text-black">${details.water.toFixed(2)}</td>
                         </tr>
                         <tr>
                           <td className="py-1  text-black">{t('electricityEnergyItem')}</td>
                           <td className="py-1 text-right text-gray-500 font-mono">({invoice.electricityLastMonth}kWh➔{invoice.electricityThisMonth}kWh)</td>
-                          <td className="py-1 text-right text-gray-500">{Math.max(0, invoice.electricityThisMonth - invoice.electricityLastMonth)} kWh</td>
+                          <td className="py-1 text-right text-gray-500">{Math.max(0, invoice.electricityThisMonth - invoice.electricityLastMonth)}kWh</td>
                           <td className="py-1 text-right text-gray-500">${parseFloat(invoice.electricityRate).toFixed(2)}</td>
                           <td className="py-1 text-right  text-black">${details.electricity.toFixed(2)}</td>
                         </tr>
@@ -953,11 +953,11 @@ export default function InvoicesPage() {
                  <div className="flex flex-col items-center gap-2 mt-2 border-t border-black pt-2">
                   {/* 1. MOVED TOTALS TO THE TOP */}
                   <div className="w-full space-y-1 text-right">
-                    <div className="flex justify-between text-[10px] text-gray-600 ">
+                    <div className="flex justify-between text-[12px] text-gray-600 ">
                       <span>{t('printSubtotal')}:</span>
                       <div className="text-right">
-                        <div className='text-[10px]'>${details.grandTotal.toFixed(2)}</div>
-                        <div className="text-[10px] text-gray-500">
+                        <div className='text-[12px]'>${details.grandTotal.toFixed(2)}</div>
+                        <div className="text-[12px] text-gray-500">
                           {(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
                         </div>
                       </div>
@@ -965,8 +965,8 @@ export default function InvoicesPage() {
                     <div className="flex justify-between font-black border-t pt-1 border-black text-black">
                       <span>{t('printTotalDue')}:</span>
                       <div className="text-right">
-                        <div className='text-[10px]'>${details.grandTotal.toFixed(2)}</div>
-                        <div className="text-[10px] text-gray-500">
+                        <div className='text-[12px]'>${details.grandTotal.toFixed(2)}</div>
+                        <div className="text-[12px] text-gray-500">
                           {(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
                         </div>
                       </div>
@@ -976,7 +976,7 @@ export default function InvoicesPage() {
                 {/* 2. QR CODE AT THE BOTTOM */}
                 {khqrUrl && (
                   <div className="flex flex-col items-center mt-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider mb-1">
+                    <p className="text-[12px] font-semibold uppercase tracking-wider mb-1">
                       {t('scanToPay')}
                     </p>
                     <div className="p-1  border rounded">
@@ -990,7 +990,14 @@ export default function InvoicesPage() {
                     </div>
                   </div>
                 )}
-              </div>
+                 </div>
+                  {/* --- Informational Notes --- */}
+                    <div className="text-[10px] text-gray-600 my-2 space-y-0.5 border-t border-dashed border-gray-300 pt-2">
+                      <p className="font-bold text-black uppercase">{t('printNotes')}:</p>
+                      <p>• {t('waterSupplyItem')}: 1m³ = 2,500៛ ($0.625)</p>
+                      <p>• {t('electricityEnergyItem')}: 1kWh = 1,500៛ ($0.375)</p>
+                      <p>• {t('exchangeRate')}: $1 = {USD_TO_RIEL.toLocaleString()}៛</p>
+                    </div>
                 </div>
               );
             })}
