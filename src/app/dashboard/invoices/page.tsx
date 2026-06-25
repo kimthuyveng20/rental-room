@@ -934,10 +934,10 @@ export default function InvoicesPage() {
 
                 <div className='space-y-2 text-[12px]'>
                   <span className="uppercase text-gray-500 block">{t('date')} ៖</span>
-                  <p className="text-gray-700">{t('printTargetCycle')}: {formatDate(invoice.billingPeriod)}</p>
+                  <p className="text-gray-700">{t('printTargetCycle')}: {invoice.billingPeriod}</p>
                   <p className="text-gray-700">{t('thStatus')}: {t(`status_${invoice.status}`).toUpperCase()}</p>
-                  <p className=" border-gray-300">{t('printDeadline')}: {new Date(invoice.dueDate).toLocaleDateString()}</p>
-                  <p className="border-gray-300">{t('startDate')}: {new Date(invoice.startDate).toLocaleDateString()} {"-"} {t('endDate')}: {new Date(invoice.endDate).toLocaleDateString()}</p>
+                  <p className=" border-gray-300">{t('printDeadline')}: {formatDate(new Date(invoice.dueDate))}</p>
+                  <p className="border-gray-300">{t('startDate')}: {formatDate(new Date(invoice.startDate))} {"-"} {t('endDate')}: {formatDate(new Date(invoice.endDate))}</p>
                   <div className="print-hr"></div>
                 </div>
               </div>
