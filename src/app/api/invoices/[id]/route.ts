@@ -1,6 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import {  getDb } from '@/src/lib/db';
-import { invoices, payments } from '@/src/lib/db/schema';
+import { invoices, payments, paymentTransactions } from '@/src/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { format } from 'date-fns';
 
@@ -62,5 +62,54 @@ export async function PATCH(
   } catch (error: any) {
     console.error('INVOICE_PATCH_FAULT:', error);
     return NextResponse.json({ error: error?.message || 'Failed to update fields.' }, { status: 500 });
+  }
+}
+
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const invoiceId = Number(id);
+    const db = getDb();
+    
+    if (isNaN(invoiceId)) {
+      return NextResponse.json(
+        { error: 'Invalid invoice ID' },
+        { status: 400 }
+      );
+    }
+
+    // Delete related payment transactions first
+    await db
+      .delete(paymentTransactions)
+      .where(eq(paymentTransactions.invoiceId, invoiceId));
+
+    // Delete invoice
+    const deleted = await db
+      .delete(invoices)
+      .where(eq(invoices.id, invoiceId))
+      .returning();
+
+    if (deleted.length === 0) {
+      return NextResponse.json(
+        { error: 'Invoice not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Invoice deleted successfully',
+    });
+  } catch (error) {
+    console.error('Delete invoice error:', error);
+
+    return NextResponse.json(
+      { error: 'Failed to delete invoice' },
+      { status: 500 }
+    );
   }
 }

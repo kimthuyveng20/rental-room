@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/src/lib/db';
-import { leases, rooms, properties, tenants } from '@/src/lib/db/schema';
+import { leases, rooms, properties, tenants, invoices, payments } from '@/src/lib/db/schema';
 import { eq, and, exists, type InferSelectModel } from 'drizzle-orm';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/src/lib/auth";
@@ -186,60 +186,96 @@ export async function POST(req: Request) {
   }
 }
 
-// --- DELETE: SECURE LEASE TERMINATION SEQUENCE ---
+
 export async function DELETE(req: Request) {
   try {
     const session = await getServerSession(authOptions);
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     if (session.user.role === 'tenant') {
-      return NextResponse.json({ error: 'Forbidden: Tenants cannot void agreements' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Forbidden: Tenants cannot void agreements' },
+        { status: 403 }
+      );
     }
 
     const currentUserId = Number(session.user.id);
     const db = getDb();
+
     const { searchParams } = new URL(req.url);
     const leaseIdStr = searchParams.get('id');
 
     if (!leaseIdStr) {
-      return NextResponse.json({ error: 'Missing lease identifier param' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Missing lease identifier param' },
+        { status: 400 }
+      );
     }
 
     const leaseId = parseInt(leaseIdStr, 10);
 
-    // Fetch targets including parent property relations to trace management scopes
+    // Get lease with relations
     const targetLease = await db.query.leases.findFirst({
       where: (leases, { eq }) => eq(leases.id, leaseId),
       with: {
-        room: { with: { property: true } }
-      }
+        room: {
+          with: {
+            property: true,
+          },
+        },
+      },
     });
 
     if (!targetLease) {
-      return NextResponse.json({ error: 'Lease agreement record not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Lease agreement record not found' },
+        { status: 404 }
+      );
     }
 
-    // 🔒 Owner Guard: Check authority over trace records before running database manipulations
-    if (session.user.role === 'owner' && targetLease.room.property.ownerId !== currentUserId) {
-      return NextResponse.json({ error: 'Forbidden: You do not own the property tied to this lease.' }, { status: 403 });
+    // Owner permission check
+    if (
+      session.user.role === 'owner' &&
+      targetLease.room.property.ownerId !== currentUserId
+    ) {
+      return NextResponse.json(
+        { error: 'Forbidden: You do not own the property tied to this lease.' },
+        { status: 403 }
+      );
     }
 
-    // Execute safe operations in an isolated atomic database transaction boundary
     await db.transaction(async (tx) => {
-      if (targetLease.roomId) {
-        await tx
-          .update(rooms)
-          .set({ status: 'available' })
-          .where(eq(rooms.id, targetLease.roomId));
-      }
-      await tx.delete(leases).where(eq(leases.id, leaseId));
-    });
+  // 1. release room first
+  if (targetLease.roomId) {
+    await tx
+      .update(rooms)
+      .set({ status: 'available' })
+      .where(eq(rooms.id, targetLease.roomId));
+  }
 
-    return NextResponse.json({ success: true, message: 'Lease agreement successfully terminated and room released' });
+  // 2. delete payments FIRST (new blocker)
+  await tx.delete(payments).where(eq(payments.leaseId, leaseId));
+
+  // 3. delete invoices SECOND
+  await tx.delete(invoices).where(eq(invoices.leaseId, leaseId));
+
+  // 4. delete lease LAST
+  await tx.delete(leases).where(eq(leases.id, leaseId));
+});
+
+    return NextResponse.json({
+      success: true,
+      message: 'Lease terminated, invoices removed, and room released',
+    });
   } catch (error) {
     console.error('DELETE_LEASE_ROUTE_ERROR:', error);
-    return NextResponse.json({ error: 'Failed to fully execute lease deletion sequence' }, { status: 500 });
+
+    return NextResponse.json(
+      { error: 'Failed to fully execute lease deletion sequence' },
+      { status: 500 }
+    );
   }
 }

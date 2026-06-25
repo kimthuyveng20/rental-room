@@ -71,10 +71,10 @@ export default function LeasesPage() {
   const [leases, setLeases] = useState<DBLease[]>([]);
   const [rooms, setRooms] = useState<Array<{ id: number; roomNumber: string }>>([]);
   const [tenants, setTenants] = useState<Array<{ id: number; user: { name: string } }>>([]);
-  
+  const [viewLease, setViewLease] = useState<DBLease | null>(null);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-
+  
   // Added control tracks to safely orchestrate lease purges
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
   const [deletingLoader, setDeletingLoader] = useState(false);
@@ -337,6 +337,68 @@ export default function LeasesPage() {
           </Dialog>
         </div>
 
+<Dialog open={!!viewLease} onOpenChange={(val) => !val && setViewLease(null)}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Lease Details</DialogTitle>
+                </DialogHeader>
+
+                {viewLease && (
+                  <div className="space-y-4 text-sm">
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-muted-foreground">Tenant</p>
+                        <p className="font-medium">
+                          {viewLease.tenant?.user?.name || 'N/A'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-muted-foreground">Room</p>
+                        <p className="font-medium">
+                          Room {viewLease.room?.roomNumber || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-muted-foreground">Start Date</p>
+                        <p>{format(new Date(viewLease.startDate), 'MMM dd, yyyy')}</p>
+                      </div>
+
+                      <div>
+                        <p className="text-muted-foreground">End Date</p>
+                        <p>{format(new Date(viewLease.endDate), 'MMM dd, yyyy')}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-muted-foreground">Monthly Rent</p>
+                        <p className="font-semibold">
+                          ${Number(viewLease.monthlyRent).toFixed(2)}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-muted-foreground">Status</p>
+                        <Badge className={getStatusColor(viewLease.status)}>
+                          {viewLease.status}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-muted-foreground">Days Remaining</p>
+                      <p>{getDaysRemaining(viewLease.endDate)} days</p>
+                    </div>
+
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
         {/* Dynamic Deletion Modal Protection Overlay Box */}
         <AlertDialog open={deleteTargetId !== null} onOpenChange={(val) => !val && setDeleteTargetId(null)}>
           <AlertDialogContent>
@@ -368,6 +430,7 @@ export default function LeasesPage() {
           </AlertDialogContent>
         </AlertDialog>
 
+                
         {/* Leases Output Matrix Area */}
         <div className="space-y-4">
   {leases.length === 0 ? (
@@ -426,6 +489,14 @@ export default function LeasesPage() {
                   </Badge>
                 </div>
 
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground"
+                onClick={() => setViewLease(lease)}
+              >
+                <FileText className="w-4 h-4" />
+              </Button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -434,6 +505,7 @@ export default function LeasesPage() {
                 >
                   <Trash2 className="w-4 h-4" />
                 </Button>
+                
               </div>
             </div>
           </CardContent>

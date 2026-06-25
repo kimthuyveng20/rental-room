@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/src/lib/db';
-import { users, tenants, documents, leases, rooms, properties } from '@/src/lib/db/schema';
-import { eq, and, exists, or } from 'drizzle-orm';
+import { users, tenants, documents, leases, rooms, properties, invoices } from '@/src/lib/db/schema';
+import { eq, and, exists, or, inArray } from 'drizzle-orm';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/src/lib/auth";
 
@@ -315,11 +315,31 @@ export async function DELETE(req: Request) {
     }
 
     await db.transaction(async (tx) => {
-      await tx.delete(documents).where(eq(documents.tenantId, tenantId));
-      await tx.delete(leases).where(eq(leases.tenantId, tenantId));
-      await tx.delete(tenants).where(eq(tenants.id, tenantId));
-      await tx.delete(users).where(eq(users.id, targetTenant.userId));
-    });
+  // 1. delete invoices linked to leases
+  await tx
+    .delete(invoices)
+    .where(
+      inArray(
+        invoices.leaseId,
+        tx
+          .select({ id: leases.id })
+          .from(leases)
+          .where(eq(leases.tenantId, tenantId))
+      )
+    );
+
+  // 2. delete documents
+  await tx.delete(documents).where(eq(documents.tenantId, tenantId));
+
+  // 3. delete leases
+  await tx.delete(leases).where(eq(leases.tenantId, tenantId));
+
+  // 4. delete tenant
+  await tx.delete(tenants).where(eq(tenants.id, tenantId));
+
+  // 5. delete user
+  await tx.delete(users).where(eq(users.id, targetTenant.userId));
+});
 
     return NextResponse.json({ success: true, message: 'Tenant successfully removed' });
   } catch (error) {
