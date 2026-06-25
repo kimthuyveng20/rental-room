@@ -42,7 +42,7 @@ import {
   PaginationPrevious,
 } from "@/src/components/ui/pagination" 
 import React from 'react';
-import { unitPerEletrict, unitPerWater, USD_TO_RIEL } from '@/src/lib/utils';
+import { formatDate, unitPerEletrict, unitPerWater, USD_TO_RIEL } from '@/src/lib/utils';
 
 interface ActiveLease {
   id: number;
@@ -858,171 +858,202 @@ export default function InvoicesPage() {
       </AlertDialog>
 
       {/* HIGH-CONTRAST INVOICE PRINT VIEW - Supporting Single and Multi Print maps */}
-      {invoicesToPrint.length > 0 && (
-        <>
-          <style>{`
-            @media print {
-             @page {
-                size: 80mm auto;
-                margin: 0;
-              }
-              body {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-              }
-              /* Force all text to be solid black */
-              .text-gray-500, .text-gray-400, .text-gray-600, .text-gray-700, .text-black , .had{
-                color: #000000 !important;
-                font-weight: normal !important;
-              }
-              /* Ensure the container fits comfortably */
-              .w-\[80mm\] {
-                width: 76mm !important;
-                margin: 0 auto;
-              }
-            }
-          `}</style>
+      {/* HIGH-CONTRAST INVOICE PRINT VIEW */}
+{invoicesToPrint.length > 0 && (
+  <>
+    <style>{`
+      @media print {
+        @page { size: 80mm auto; margin: 0; }
+        body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        
+        /* Force text to black, but do not force borders on everything */
+        .invoice-container, .invoice-container * {
+          color: #000000 !important;
+          background-color: transparent !important;
+        }
+        
+        /* Only force borders on specific utility classes */
+        .invoice-container .border-b, 
+        .invoice-container .border-t, 
+        .invoice-container .border-dashed {
+          border-color: #000000 !important;
+          border-style: solid !important;
+        }
 
-          <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:text-black z-50 bg-white text-black font-sans w-[80mm] mx-auto text-[12px] leading-tight">
-            {invoicesToPrint.map((invoice, index) => {
-              const details = calculateTotals(invoice);
-              const totalUSD = details.grandTotal;
-              const totalRiel = totalUSD * USD_TO_RIEL;
-              const khqrUrl = invoice.lease?.room?.property?.khqrImageUrl;
-              const ownerName = invoice.lease?.room?.property?.name;
-              const ownerEmail =  invoice.lease?.room?.property?.email;
+        .w-\[80mm\] { width: 76mm !important; margin: 0 auto; }
+        .print-hr {
+          border: none;
+          border-top: 1px dashed #000000 !important;
+          height: 1px;
+          margin: 0;
+          display: block; /* Ensure it stays a block element */
+        }
+      }
+    `}</style>
 
-              return (
-                <div
-                  key={invoice.id}
-                  className="py-2 px-2 flex flex-col invoice-containe"
-                  style={{ breakAfter: index === invoicesToPrint.length - 1 ? 'auto' : 'page' }}
-                >
-                  <div>
-                    <div className="border-b-2 border-black pb-2 gap-1">
-                      <div className="flex flex-col items-center text-center">
-                        <div className="space-y-2">
-                          <h2 className="text-sm  uppercase">{t('printHeader')}</h2>
-                          <p className="text-[12px] text-gray-600 font-mono">{t('serialId')}: #INV-{String(invoice.id).padStart(5, '0')}</p>
-                        </div>
-                      </div>
-                      <div className=" flex justify-between items-center">
-                       <div className="space-y-2 pt-2">
-                        <p className="text-[12px] block  uppercase">{t('companyName')}</p>
-                        <div className="text-start text-[12px]">
-                          <p className=" text-gray-500 font-mono">{t('name')} : {ownerName}</p>
-                          <p className=" text-gray-500 font-mono">{t('email')}: {ownerEmail}</p>
-                          <p className=" text-gray-500 font-mono">{t('phone')}: 096 92 63064</p>
-                        </div>
-                      </div>
-                      </div>
-                    </div>
+    <div className="hidden print:block print:absolute print:inset-0 print:bg-white print:text-black z-50 bg-white text-black font-sans w-[80mm] mx-auto text-[12px] leading-tight">
+      {invoicesToPrint.map((invoice, index) => {
+        const details = calculateTotals(invoice);
+        const ownerName = invoice.lease?.room?.property?.name;
+        const ownerEmail = invoice.lease?.room?.property?.email;
+        const khqrUrl = invoice.lease?.room?.property?.khqrImageUrl;
 
-                    <div className="flex flex-col gap-2 my-2 border-b border-dashed border-gray-400 pb-2 text-[12px]">
-                      <div className='space-y-2 text-[12px]'>
-                        <span className="uppercase text-gray-500  block ">{t('printBillTo')}</span>
-                        <p className="block">{t('name')}: {invoice.lease?.tenant?.user?.name}</p>
-                        <p className="text-gray-700">{t('printAssignedRoom')}: {t('roomShort')} {invoice.lease?.room?.roomNumber}</p>
-                      </div>
-                      <div className='space-y-2 text-[12px]'>
-                        <span className="uppercase text-gray-500  block ">{t('printStatementSummary')}</span>
-                        <p className="text-gray-700">{t('printTargetCycle')}: {invoice.billingPeriod}</p>
-                        <p className="text-gray-700">{t('thStatus')}: {t(`status_${invoice.status}`).toUpperCase()}</p>
-                        <p className=" pt-1 mt-1 border-t border-gray-300">{t('printDeadline')}: {new Date(invoice.dueDate).toLocaleDateString()}</p>
-                        <p className=" pt-1 mt-1 border-t border-gray-300">{t('startDate')}: {new Date(invoice.startDate).toLocaleDateString()}  {"-"} {t('endDate')}: {new Date(invoice.endDate).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-
-                    <table className="w-full my-2 text-left border-collapse text-[12px]">
-                      <thead>
-                        <tr className="border-b border-black uppercase ">
-                          <th className="py-1 had">{t('printThItems')}</th>
-                          <th className="py-1 text-right had">{t('printThMeter')}</th>
-                          <th className="py-1 text-right had">{t('printThConsumed')}</th>
-                          <th className="py-1 text-right had">{t('printThRate')}</th>
-                          <th className="py-1 text-right had">{t('printThSubtotal')}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-300 text-gray-900">
-                        <tr>
-                          <td className="py-1">{t('baseRoomRent')}</td>
-                          <td className="py-1 text-right text-gray-500">--</td>
-                          <td className="py-1 text-right text-gray-500 ">{t('printMonthCycle')}</td>
-                          <td className="py-1 text-right text-gray-500 ">${details.rent.toFixed(2)}</td>
-                          <td className="py-1 text-right  text-black">${details.rent.toFixed(2)}</td>
-                        </tr>
-                        <tr>
-                          <td className="py-1  text-black">{t('waterSupplyItem')}</td>
-                          <td className="py-1 text-right text-gray-500 font-mono">({invoice.waterLastMonth}{t('printUnits')}➔{invoice.waterThisMonth}{t('printUnits')})</td>
-                          <td className="py-1 text-right text-gray-500">{Math.max(0, invoice.waterThisMonth - invoice.waterLastMonth)}{t('printUnits')}</td>
-                          <td className="py-1 text-right text-gray-500">${parseFloat(invoice.waterRate).toFixed(2)}</td>
-                          <td className="py-1 text-right  text-black">${details.water.toFixed(2)}</td>
-                        </tr>
-                        <tr>
-                          <td className="py-1  text-black">{t('electricityEnergyItem')}</td>
-                          <td className="py-1 text-right text-gray-500 font-mono">({invoice.electricityLastMonth}kWh➔{invoice.electricityThisMonth}kWh)</td>
-                          <td className="py-1 text-right text-gray-500">{Math.max(0, invoice.electricityThisMonth - invoice.electricityLastMonth)}kWh</td>
-                          <td className="py-1 text-right text-gray-500">${parseFloat(invoice.electricityRate).toFixed(2)}</td>
-                          <td className="py-1 text-right  text-black">${details.electricity.toFixed(2)}</td>
-                        </tr>
-                      </tbody>
-                    </table>
+        return (
+          <div
+            key={invoice.id}
+            className="py-2 px-2 flex flex-col invoice-container"
+            style={{ breakAfter: index === invoicesToPrint.length - 1 ? 'auto' : 'page' }}
+          >
+            <div>
+              <div className="border-b-2 border-black pb-2 gap-1">
+                <div className="flex flex-col items-center text-center">
+                  <div className="space-y-2">
+                    <h2 className="text-sm uppercase">{t('printHeader')}</h2>
+                    <p className="text-[12px] text-gray-600 font-mono">{t('serialId')}: #INV-{String(invoice.id).padStart(5, '0')}</p>
                   </div>
-
-                 <div className="flex flex-col items-center gap-2 mt-2 border-t border-black pt-2">
-                  {/* 1. MOVED TOTALS TO THE TOP */}
-                  <div className="w-full space-y-1 text-right">
-                    <div className="flex justify-between text-[12px] text-gray-600 ">
-                      <span>{t('printSubtotal')}:</span>
-                      <div className="text-right">
-                        <div className='text-[12px]'>${details.grandTotal.toFixed(2)}</div>
-                        <div className="text-[12px] text-gray-500">
-                          {(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex justify-between  border-t pt-1 border-black text-black">
-                      <span>{t('printTotalDue')}:</span>
-                      <div className="text-right">
-                        <div className='text-[12px]'>${details.grandTotal.toFixed(2)}</div>
-                        <div className="text-[12px] text-gray-500">
-                          {(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                {/* 2. QR CODE AT THE BOTTOM */}
-                {khqrUrl && (
-                  <div className="flex flex-col items-center mt-4">
-                    <p className="text-[12px]  uppercase tracking-wider mb-1">
-                      {t('scanToPay')}
-                    </p>
-                    <div className="p-1  border rounded">
-                      <img
-                        src={khqrUrl}
-                        alt="KHQR Payment"
-                        width={150}
-                        height={150}
-                        className="object-contain"
-                      />
-                    </div>
-                  </div>
-                )}
-                 </div>
-                  {/* --- Informational Notes --- */}
-                    <div className="text-[10px] text-gray-600 my-2 space-y-0.5 border-t border-dashed border-gray-300 pt-2">
-                      <p className=" text-black uppercase">{t('printNotes')}:</p>
-                      <p>• {t('waterSupplyItem')}: 1m³ = 2,500៛ (${unitPerWater})</p>
-                      <p>• {t('electricityEnergyItem')}: 1kWh = 1,500៛ (${unitPerEletrict})</p>
-                      <p>• {t('exchangeRate')}: $1 = {USD_TO_RIEL.toLocaleString()}៛</p>
-                    </div>
                 </div>
-              );
-            })}
+                <div className="flex justify-between items-center">
+                  <div className="space-y-2 pt-2">
+                    <p className="text-[12px] block uppercase">{t('companyName')} ៖</p>
+                    <div className="text-start text-[12px]">
+                      <p className="text-gray-500 font-mono">{t('name')} : {ownerName}</p>
+                      <p className="text-gray-500 font-mono">{t('email')}: {ownerEmail}</p>
+                      <p className="text-gray-500 font-mono">{t('phone')}: 096 92 63064</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 my-2  border-dashed border-gray-400 pb-2 text-[12px]">
+                <div className='space-y-2 text-[12px]'>
+                  <span className="uppercase text-gray-500 block">{t('thTenant')}​ ៖</span>
+                  <p className="block">{t('name')}: {invoice.lease?.tenant?.user?.name}</p>
+                  <p className="text-gray-700">{t('printAssignedRoom')}: {t('roomShort')} {invoice.lease?.room?.roomNumber}</p>
+                  <div className="print-hr"></div>
+                </div>
+
+                <div className='space-y-2 text-[12px]'>
+                  <span className="uppercase text-gray-500 block">{t('date')} ៖</span>
+                  <p className="text-gray-700">{t('printTargetCycle')}: {formatDate(invoice.billingPeriod)}</p>
+                  <p className="text-gray-700">{t('thStatus')}: {t(`status_${invoice.status}`).toUpperCase()}</p>
+                  <p className=" border-gray-300">{t('printDeadline')}: {new Date(invoice.dueDate).toLocaleDateString()}</p>
+                  <p className="border-gray-300">{t('startDate')}: {new Date(invoice.startDate).toLocaleDateString()} {"-"} {t('endDate')}: {new Date(invoice.endDate).toLocaleDateString()}</p>
+                  <div className="print-hr"></div>
+                </div>
+              </div>
+
+              <table className="w-full my-1 text-left border-collapse text-[11px] leading-tight">
+              <thead>
+                <tr className="uppercase border-b border-gray-500">
+                  <th className="p-1 font-bold">{t('printThItems')}</th>
+                  <th className="p-1 text-right font-bold">{t('printThMeter')}</th>
+                  <th className="p-1 text-right font-bold">{t('printThConsumed')}</th>
+                  <th className="p-1 text-right font-bold">{t('printThRate')}</th>
+                  <th className="p-1 text-right font-bold">{t('printThSubtotal')}</th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-gray-300">
+                <tr>
+                  <td className="p-1">{t('baseRoomRent')}</td>
+                  <td className="p-1 text-right">--</td>
+                  <td className="p-1 text-right">{t('printMonthCycle')}</td>
+                  <td className="p-1 text-right">
+                    ${details.rent.toFixed(2)}
+                  </td>
+                  <td className="p-1 text-right">
+                    ${details.rent.toFixed(2)}
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="p-1">{t('waterSupplyItem')}</td>
+                  <td className="p-1 text-right">
+                    ({invoice.waterLastMonth}
+                    {t('printUnits')}→
+                    {invoice.waterThisMonth}
+                    {t('printUnits')})
+                  </td>
+                  <td className="p-1 text-right">
+                    {Math.max(
+                      0,
+                      invoice.waterThisMonth - invoice.waterLastMonth
+                    )}
+                    {t('printUnits')}
+                  </td>
+                  <td className="p-1 text-right">
+                    ${parseFloat(invoice.waterRate).toFixed(2)}
+                  </td>
+                  <td className="p-1 text-right">
+                    ${details.water.toFixed(2)}
+                  </td>
+                </tr>
+
+                <tr>
+                  <td className="p-1">{t('electricityEnergyItem')}</td>
+                  <td className="p-1 text-right">
+                    ({invoice.electricityLastMonth}kWh→
+                    {invoice.electricityThisMonth}kWh)
+                  </td>
+                  <td className="p-1 text-right">
+                    {Math.max(
+                      0,
+                      invoice.electricityThisMonth -
+                        invoice.electricityLastMonth
+                    )}
+                    kWh
+                  </td>
+                  <td className="p-1 text-right">
+                    ${parseFloat(invoice.electricityRate).toFixed(2)}
+                  </td>
+                  <td className="p-1 text-right">
+                    ${details.electricity.toFixed(2)}
+                  </td>
+                </tr>
+              </tbody>
+</table>
+            </div>
+
+            <div className="flex flex-col items-center gap-2 mt-2 border-t border-black pt-2">
+              <div className="w-full space-y-1 text-right">
+                <div className="flex justify-between text-[12px]">
+                  <span>{t('printSubtotal')}:</span>
+                  <div className="text-right">
+                    <div>${details.grandTotal.toFixed(2)}</div>
+                    <div>{(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛</div>
+                  </div>
+                </div>
+                <div className="flex justify-between border-t pt-1 border-black">
+                  <span>{t('printTotalDue')}:</span>
+                  <div className="text-right">
+                    <div>${details.grandTotal.toFixed(2)}</div>
+                    <div>{(details.grandTotal * USD_TO_RIEL).toLocaleString()} ៛</div>
+                  </div>
+                </div>
+              </div>
+
+              {khqrUrl && (
+                <div className="flex flex-col items-center ">
+                  <p className="text-[12px] uppercase tracking-wider mb-1">{t('scanToPay')}</p>
+                  <div className="p-1 border rounded">
+                    <img src={khqrUrl} alt="KHQR Payment" width={150} height={150} className="object-contain" />
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="text-[10px] my-2 space-y-0.5 border-t border-dashed border-gray-300 pt-2">
+              <p className="uppercase">{t('printNotes')}:</p>
+              <p>• {t('waterSupplyItem')}: 1m³ = 2,500៛ (${unitPerWater})</p>
+              <p>• {t('electricityEnergyItem')}: 1kWh = 1,500៛ (${unitPerEletrict})</p>
+              <p>• {t('exchangeRate')}: $1 = {USD_TO_RIEL.toLocaleString()}៛</p>
+            </div>
           </div>
-        </>
-      )}
+        );
+      })}
+    </div>
+  </>
+)}
     </DashboardLayout>
   );
 }
