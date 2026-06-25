@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/src/lib/db';
-import { rooms, properties, leases, tenants } from '@/src/lib/db/schema';
+import { rooms, properties, leases, tenants} from '@/src/lib/db/schema';
 import { eq, and, exists, type InferSelectModel } from 'drizzle-orm';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/src/lib/auth";
@@ -207,5 +207,24 @@ export async function DELETE(req: Request) {
     }
 
     return NextResponse.json({ error: 'Failed to discard resource from database storage.' }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const { id, status } = await req.json();
+
+    // Use the table object imported from schema
+    const db = getDb();
+    const updatedRoom = await db
+      .update(rooms)
+      .set({ status })
+      .where(eq(rooms.id, id))
+      .returning();
+
+    return NextResponse.json(updatedRoom[0]);
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: 'Failed to update status' }, { status: 500 });
   }
 }

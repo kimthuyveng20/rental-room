@@ -309,6 +309,20 @@ export default function RoomsPage() {
     }
   };
 
+  const handleStatusChange = async (roomId: number, newStatus: string) => {
+  try {
+    const res = await fetch('/api/rooms', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: roomId, status: newStatus }),
+    });
+    
+    if (!res.ok) throw new Error('Update failed');
+    await syncDataStream(); // Refresh the list
+  } catch (err) {
+    setErrorMessage(t('errUpdate'));
+  }
+};
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'occupied': return 'bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400';
@@ -549,10 +563,30 @@ export default function RoomsPage() {
                             )}
                           </td>
                           <td className="py-3 px-4">
-                            <Badge className={`${getStatusColor(room.status)} shadow-none border-none capitalize`}>
-                              {t(room.status) || room.status}
+                        <Select 
+                          defaultValue={room.status} 
+                          onValueChange={(val) => handleStatusChange(room.id, val)}
+                        >
+                          <SelectTrigger className="w-[140px] h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="available">
+                              <Badge className={`${getStatusColor("available")} shadow-none border-none capitalize`}>
+                              {t('available')}
                             </Badge>
-                </td>
+                              </SelectItem>
+                            <SelectItem value="occupied"><Badge className={`${getStatusColor('occupied')} shadow-none border-none capitalize`}>
+                              {t('occupied')}
+                            </Badge></SelectItem>
+                            <SelectItem value="maintenance">
+                              <Badge className={`${getStatusColor("maintenance")} shadow-none border-none capitalize`}>
+                              {t('maintenance')}
+                            </Badge>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </td>
                 <td className="py-3 px-4 text-center">
                             <Button 
                               variant="ghost" 
