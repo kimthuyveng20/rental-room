@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation'; 
 import {
   Building,
   DoorOpen,
@@ -13,9 +14,10 @@ import {
   X,
   LogOut,
   Receipt,
+  LayoutDashboardIcon,
 } from 'lucide-react';
 import { Button } from '@/src/components/ui/button';
-import { useTranslations, useLocale } from 'next-intl'; // Import useLocale
+import { useTranslations, useLocale } from 'next-intl';
 import { LanguageSwitcher } from './language-switcher';
 import { signOut } from 'next-auth/react';
 import {
@@ -38,9 +40,9 @@ interface DashboardLayoutProps {
 
 const navigationItems = [
   {
-    labelKey: 'dashboard', // Changed to mapping key
+    labelKey: 'dashboard',
     href: '/dashboard',
-    icon: Building,
+    icon: LayoutDashboardIcon,
     roles: ['owner', 'admin', 'tenant'],
   },
   {
@@ -94,10 +96,11 @@ export function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  // 1. Hook to get the active locale (e.g., 'en' or 'km')
+  
+  // 2. Initialize usePathname hook
+  const pathname = usePathname();
   const locale = useLocale(); 
   
-  // 2. Hook to handle translation namespaces
   const t = useTranslations('Navigation');
   const commonT = useTranslations('Common');
 
@@ -106,18 +109,18 @@ export function DashboardLayout({
   );
 
   const handleLogout = async () => {
-  try {
-    setLoggingOut(true);
+    try {
+      setLoggingOut(true);
+      await signOut({
+        callbackUrl: '/login',
+      });
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
-    await signOut({
-      callbackUrl: '/login',
-    });
-  } catch (error) {
-    console.error('Logout failed:', error);
-  } finally {
-    setLoggingOut(false);
-  }
-};
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
@@ -126,39 +129,50 @@ export function DashboardLayout({
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex justify-end">
-              <LanguageSwitcher currentLocale={locale} />
-            </div>
+        <div className="flex justify-end p-2">
+          <LanguageSwitcher currentLocale={locale} />
+        </div>
+        
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="border-b space-y-4 flex items-center justify-center">
-              <div className="flex items-center">
-                <Image
-                  src="/rental-logo.svg"
-                  alt="Rental Room Logo"
-                  width={70}
-                  height={70}
-                  priority
-                />
-              </div>
-
-            {/* Language Switcher placement inside the sidebar header */}
+          <div className="border-b space-y-4 flex items-center justify-center p-4">
+            <div className="flex items-center">
+              <Image
+                src="/rental-logo.svg"
+                alt="Rental Room Logo"
+                width={70}
+                height={70}
+                priority
+              />
+            </div>
           </div>
             
-
           {/* Navigation */}
           <nav className="flex-1 p-4">
             <ul className="space-y-2">
               {filteredNavigation.map((item) => {
                 const Icon = item.icon;
+                
+                // 3. Logic to determine if link is active
+                // Handles internationalized paths (e.g., /en/dashboard matches /dashboard)
+                const normalizedPathname = pathname.replace(`/${locale}`, '') || '/';
+                const isActive = item.href === '/dashboard' 
+                  ? normalizedPathname === '/dashboard'
+                  : normalizedPathname.startsWith(item.href);
+
                 return (
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      className="flex items-center gap-3 px-4 py-2 rounded-lg text-foreground hover:bg-muted transition-colors"
+                      // 4. Dynamically append active classes
+                      className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
+                        isActive 
+                          ? 'bg-primary text-primary-foreground font-medium' 
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      }`}
+                      onClick={() => setSidebarOpen(false)} // Close mobile menu when clicked
                     >
                       <Icon className="w-5 h-5" />
-                      {/* Translate the label dynamically using the translation file keys */}
                       <span>{t(item.labelKey)}</span>
                     </Link>
                   </li>
@@ -169,53 +183,41 @@ export function DashboardLayout({
 
           {/* Logout */}
           <div className="p-4 border-t">
-           <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            onClick={() => setLogoutOpen(true)}
-          >
-            <LogOut className="w-4 h-4" />
-            {commonT('logout')}
-          </Button>
-            </div>
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2"
+              onClick={() => setLogoutOpen(true)}
+            >
+              <LogOut className="w-4 h-4" />
+              {commonT('logout')}
+            </Button>
+          </div>
         </div>
       </aside>
-      <AlertDialog
-  open={logoutOpen}
-  onOpenChange={(val) => !loggingOut && setLogoutOpen(val)}
->
-  <AlertDialogContent>
-    <AlertDialogHeader>
-      <AlertDialogTitle>
-        {commonT('logout')}
-      </AlertDialogTitle>
 
-      <AlertDialogDescription>
-        Are you sure you want to logout from your account?
-      </AlertDialogDescription>
-    </AlertDialogHeader>
-
-    <AlertDialogFooter>
-      <AlertDialogCancel disabled={loggingOut}>
-        Cancel
-      </AlertDialogCancel>
-
-      <AlertDialogAction
-        disabled={loggingOut}
-        onClick={(e) => {
-          e.preventDefault();
-          handleLogout();
-        }}
-      >
-        {loggingOut && (
-          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-        )}
-
-        {commonT('logout')}
-      </AlertDialogAction>
-    </AlertDialogFooter>
-  </AlertDialogContent>
-</AlertDialog>
+      <AlertDialog open={logoutOpen} onOpenChange={(val) => !loggingOut && setLogoutOpen(val)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{commonT('logout')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to logout from your account?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loggingOut}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={loggingOut}
+              onClick={(e) => {
+                e.preventDefault();
+                handleLogout();
+              }}
+            >
+              {loggingOut && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {commonT('logout')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -227,11 +229,7 @@ export function DashboardLayout({
             className="md:hidden"
             onClick={() => setSidebarOpen(!sidebarOpen)}
           >
-            {sidebarOpen ? (
-              <X className="w-5 h-5" />
-            ) : (
-              <Menu className="w-5 h-5" />
-            )}
+            {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </Button>
         </header>
 
