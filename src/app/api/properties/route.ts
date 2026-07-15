@@ -1,12 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/src/lib/db';
 import { S3Service } from '@/src/lib/services/s3.service';
 import { properties, rooms, leases, tenants } from '@/src/lib/db/schema';
 import { eq, and, exists, InferSelectModel } from 'drizzle-orm';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/src/lib/auth";
-
-// --- GET: FETCH SECURITY-ISOLATED PROPERTIES WITH PRESIGNED S3 URLS ---
+import jwt from "jsonwebtoken";
 
 // 1. Define the basic structural model type for properties and rooms
 type PropertyBase = InferSelectModel<typeof properties>;
@@ -17,76 +16,177 @@ type PropertyWithRooms = PropertyBase & {
   rooms: RoomBase[];
 };
 
-export async function GET() {
+
+interface JwtPayload {
+  id: number;
+  role: string;
+}
+
+interface DBRoomRelation {
+  id: number;
+  status: 'available' | 'occupied' | 'maintenance';
+}
+
+interface DBProperty {
+  id: number;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  description: string | null;
+  khqrImageUrl?: string | null;
+  rooms: DBRoomRelation[];
+}
+export async function GET(req: NextRequest) {
   try {
+    let currentUserId: number;
+    let userRole: string;
+
+    // ============================
+    // 1. Try NextAuth Session
+    // ============================
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      userRole = session.user.role;
+    } else {
+      // ============================
+      // 2. Try JWT Token (Flutter)
+      // ============================
+
+      const authHeader = req.headers.get("authorization");
+
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Unauthorized",
+          },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      const payload = jwt.verify(
+        token,
+        process.env.JWT_SECRET!
+      ) as JwtPayload;
+
+      currentUserId = payload.id;
+      userRole = payload.role;
     }
 
-    const currentUserId = Number(session.user.id);
-    const userRole = session.user.role;
     const db = getDb();
 
-   let dbProperties: PropertyWithRooms[] = [];
+    let dbProperties: any[] = [];
 
-    if (userRole === 'admin') {
+    // ============================
+    // Admin
+    // ============================
+
+    if (userRole === "admin") {
       dbProperties = await db.query.properties.findMany({
-        with: { rooms: true },
-        orderBy: (properties, { desc }) => [desc(properties.createdAt)],
+        with: {
+          rooms: true,
+        },
+        orderBy: (properties, { desc }) => [
+          desc(properties.createdAt),
+        ],
       });
+    }
 
-    } else if (userRole === 'owner') {
-      // 🔒 Owner Isolation: Only fetch properties belonging to this specific owner
+    // ============================
+    // Owner
+    // ============================
+
+    else if (userRole === "owner") {
       dbProperties = await db.query.properties.findMany({
-        where: (property, { eq }) => eq(property.ownerId, currentUserId),
-        with: { rooms: true },
-        orderBy: (properties, { desc }) => [desc(properties.createdAt)],
+        where: (property, { eq }) =>
+          eq(property.ownerId, currentUserId),
+
+        with: {
+          rooms: true,
+        },
+
+        orderBy: (properties, { desc }) => [
+          desc(properties.createdAt),
+        ],
       });
+    }
 
-    } else if (userRole === 'tenant') {
-      // 🔒 Tenant Isolation: Only fetch properties hosting a room currently under active lease by this user
+    // ============================
+    // Tenant
+    // ============================
+
+    else if (userRole === "tenant") {
       dbProperties = await db.query.properties.findMany({
-        where: (property, { exists }) => exists(
-          db.select()
-            .from(rooms)
-            .innerJoin(leases, eq(rooms.id, leases.roomId))
-            .innerJoin(tenants, eq(leases.tenantId, tenants.id))
-            .where(
-              and(
-                eq(rooms.propertyId, property.id),
-                eq(tenants.userId, currentUserId)
+        where: (property, { exists }) =>
+          exists(
+            db
+              .select()
+              .from(rooms)
+              .innerJoin(leases, eq(rooms.id, leases.roomId))
+              .innerJoin(tenants, eq(leases.tenantId, tenants.id))
+              .where(
+                and(
+                  eq(rooms.propertyId, property.id),
+                  eq(tenants.userId, currentUserId)
+                )
               )
-            )
-        ),
-        with: { rooms: true },
-        orderBy: (properties, { desc }) => [desc(properties.createdAt)],
+          ),
+
+        with: {
+          rooms: true,
+        },
+
+        orderBy: (properties, { desc }) => [
+          desc(properties.createdAt),
+        ],
       });
     }
 
     const s3Service = S3Service.getInstance();
 
-    const formattedDataPromises = dbProperties.map(async (property) => {
-      let imgUrl = null;
-      if (property.khqrImageUrl && property.khqrImageUrl.trim() !== '') {
-        const extractImg = s3Service.extractKeyFromUrl(property.khqrImageUrl);
-        imgUrl = await s3Service.getPresignedUrl(extractImg);
+   const formattedData: DBProperty[] = await Promise.all(
+    dbProperties.map(async (property) => {
+      let imgUrl: string | null = null;
+
+      if (property.khqrImageUrl?.trim()) {
+        const key = s3Service.extractKeyFromUrl(property.khqrImageUrl);
+        imgUrl = await s3Service.getPresignedUrl(key);
       }
 
       return {
-        ...property,
-        khqrImageUrl: imgUrl, 
+        id: property.id,
+        name: property.name,
+        address: property.address,
+        city: property.city,
+        state: property.state,
+        zip: property.zip,
+        description: property.description,
+        khqrImageUrl: imgUrl,
+        rooms: property.rooms,
       };
+    })
+  );
+    return NextResponse.json({
+      success: true,
+      data: formattedData,
     });
-
-    const formattedData = await Promise.all(formattedDataPromises);
-    return NextResponse.json(formattedData);
-
   } catch (error) {
-    console.error('FETCH_PROPERTIES_DATABASE_FAULT:', error);
+    console.error(error);
+
     return NextResponse.json(
-      { error: 'Failed to fetch asset properties database records' }, 
-      { status: 500 }
+      {
+        success: false,
+        message: "Internal Server Error",
+      },
+      {
+        status: 500,
+      }
     );
   }
 }

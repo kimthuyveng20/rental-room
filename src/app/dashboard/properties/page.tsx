@@ -116,8 +116,8 @@ export default function PropertiesPage() {
     try {
       const response = await fetch('/api/properties');
       if (!response.ok) throw new Error(t('errors.transmissionFailure'));
-      const synchronizedArray = await response.json();
-      setProperties(synchronizedArray);
+      const data = await response.json();
+      setProperties(data.data);
     } catch (error: any) {
       console.error(error);
       setErrorMessage(error.message || t('errors.loadFailure'));
