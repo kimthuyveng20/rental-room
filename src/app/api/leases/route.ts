@@ -1,32 +1,67 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/src/lib/db';
 import { leases, rooms, properties, tenants, invoices, payments } from '@/src/lib/db/schema';
 import { eq, and, exists, type InferSelectModel } from 'drizzle-orm';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/src/lib/auth";
-
+import jwt, { JwtPayload } from "jsonwebtoken";
 // Extract Drizzle schema row types to avoid implicit 'any[]' array assignment bugs
 type RoomRecord = InferSelectModel<typeof rooms>;
 
-// --- GET: FETCH SECURED LEASES PAGE MATRIX ---
-export async function GET() {
+interface CustomJwtPayload extends JwtPayload {
+  id: number;
+  role: string;
+}
+
+export async function GET(req: NextRequest) {
   try {
-    // 1. Authenticate user session framework
+    let currentUserId: number;
+    let userRole: string;
+
+    // ==========================================
+    // 1. Try NextAuth Session (Web clients)
+    // ==========================================
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      userRole = session.user.role;
+    } else {
+      // ==========================================
+      // 2. Try JWT Token (Flutter mobile client)
+      // ==========================================
+      const authHeader = req.headers.get("authorization");
+
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { error: "Unauthorized: Missing or invalid authorization scheme" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      // Verify JWT using your env JWT_SECRET
+      const payload = jwt.verify(
+        token,
+        process.env.JWT_SECRET!
+      ) as CustomJwtPayload;
+
+      // Force-cast payload.id to number to guarantee Drizzle operations don't crash
+      currentUserId = Number(payload.id);
+      userRole = payload.role;
     }
 
-    const currentUserId = Number(session.user.id);
-    const userRole = session.user.role;
     const db = getDb();
 
     // Explicitly typed tracking storage boundaries
     let activeLeases: any[] = []; 
-    let availableRooms: RoomRecord[] = []; 
+    let availableRooms: any[] = []; 
     let registeredTenants: any[] = [];
 
-    // 2. Multi-Role Data Isolation Matrix Processing
+    // ==========================================
+    // Admin Execution Branch
+    // ==========================================
     if (userRole === 'admin') {
       // Admins pull clean global data feeds
       activeLeases = await db.query.leases.findMany({
@@ -44,8 +79,11 @@ export async function GET() {
       registeredTenants = await db.query.tenants.findMany({
         with: { user: true }
       });
-
-    } else if (userRole === 'owner') {
+    } 
+    // ==========================================
+    // Owner Execution Branch
+    // ==========================================
+    else if (userRole === 'owner') {
       // 🔒 Owner Isolation: Only discover leases linked to rooms in properties they own
       activeLeases = await db.query.leases.findMany({
         where: (lease, { exists }) => exists(
@@ -87,8 +125,11 @@ export async function GET() {
       registeredTenants = await db.query.tenants.findMany({
         with: { user: true }
       });
-
-    } else if (userRole === 'tenant') {
+    } 
+    // ==========================================
+    // Tenant Execution Branch
+    // ==========================================
+    else if (userRole === 'tenant') {
       // 🔒 Tenant Isolation: Can only discover their specific active contract profiles
       activeLeases = await db.query.leases.findMany({
         where: (lease, { exists }) => exists(
@@ -119,7 +160,10 @@ export async function GET() {
     });
   } catch (error) {
     console.error('FETCH_LEASES_PAGE_DATA_ERROR:', error);
-    return NextResponse.json({ error: 'Failed to balance page data metrics' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to balance page data metrics' }, 
+      { status: 500 }
+    );
   }
 }
 

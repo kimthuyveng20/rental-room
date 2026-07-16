@@ -1,11 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/src/lib/db';
 import { invoices, leases, rooms, properties, tenants } from '@/src/lib/db/schema'; 
 import { eq, and, exists } from 'drizzle-orm';
 import { S3Service } from '@/src/lib/services/s3.service';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/src/lib/auth";
-
+import jwt, { JwtPayload } from "jsonwebtoken";
 // --- POST: CREATE INVOICE ---
 export async function POST(req: Request) {
   try {
@@ -96,35 +96,83 @@ export async function POST(req: Request) {
   }
 }
 
-// --- GET: FETCH INVOICES ---
-export async function GET() {
+
+interface CustomJwtPayload extends JwtPayload {
+  id: number;
+  role: string;
+}
+
+export async function GET(req: NextRequest) {
   try {
+    let currentUserId: number;
+    let userRole: string;
+
+    // ==========================================
+    // 1. Try NextAuth Session (Web clients)
+    // ==========================================
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      userRole = session.user.role;
+    } else {
+      // ==========================================
+      // 2. Try JWT Token (Flutter mobile client)
+      // ==========================================
+      const authHeader = req.headers.get("authorization");
+
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { error: "Unauthorized: Missing or invalid authorization scheme" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      // Verify JWT using your env JWT_SECRET
+      const payload = jwt.verify(
+        token,
+        process.env.JWT_SECRET!
+      ) as CustomJwtPayload;
+
+      // Force-cast payload.id to number to guarantee Drizzle operations don't crash
+      currentUserId = Number(payload.id);
+      userRole = payload.role;
     }
 
-    const currentUserId = Number(session.user.id);
-    const userRole = session.user.role;
     const db = getDb();
-
     let allInvoices: any[] = [];
 
+    // ==========================================
+    // Admin Execution Branch
+    // ==========================================
     if (userRole === 'admin') {
       // Admins see everything
       allInvoices = await db.query.invoices.findMany({
         with: {
           lease: {
             with: {
-              room: { with: { property: true } },
+              room: { 
+                with: { 
+                  property: {
+                    with: {
+                      owner: true
+                    }
+                  } 
+                } 
+              },
               tenant: { with: { user: true } },
             },
           },
         },
       });
-
-    } else if (userRole === 'owner') {
-      // 🔒 Owner Query
+    } 
+    // ==========================================
+    // Owner Execution Branch
+    // ==========================================
+    else if (userRole === 'owner') {
+      // 🔒 Owner Query: Only get invoices for leases of properties they own
       allInvoices = await db.query.invoices.findMany({
         where: (invoice, { exists }) => exists(
           db.select()
@@ -138,26 +186,29 @@ export async function GET() {
               )
             )
         ),
-       with: {
-        lease: {
-          with: {
-            room: { 
-              with: { 
-                property: {
-                  with: {
-                    owner: true // <--- Add this to fetch user data
-                  }
+        with: {
+          lease: {
+            with: {
+              room: { 
+                with: { 
+                  property: {
+                    with: {
+                      owner: true
+                    }
+                  } 
                 } 
-              } 
+              },
+              tenant: { with: { user: true } },
             },
-            tenant: { with: { user: true } },
           },
         },
-      },
       });
-
-    } else if (userRole === 'tenant') {
-      // 🔒 Tenant Query
+    } 
+    // ==========================================
+    // Tenant Execution Branch
+    // ==========================================
+    else if (userRole === 'tenant') {
+      // 🔒 Tenant Query: Only get invoices linked directly to their user profile
       allInvoices = await db.query.invoices.findMany({
         where: (invoice, { exists }) => exists(
           db.select()
@@ -173,7 +224,15 @@ export async function GET() {
         with: {
           lease: {
             with: {
-              room: { with: { property: true } },
+              room: { 
+                with: { 
+                  property: {
+                    with: {
+                      owner: true
+                    }
+                  } 
+                } 
+              },
               tenant: { with: { user: true } },
             },
           },
@@ -181,20 +240,28 @@ export async function GET() {
       });
     }
 
+    // ==========================================
     // Process S3 Images (Presigning URLs)
+    // ==========================================
     const s3Service = S3Service.getInstance();
 
     const formattedData = await Promise.all(
       allInvoices.map(async (invoice) => {
-        const khqrUrl = invoice.lease?.room?.property?.khqrImageUrl;
         const property = invoice.lease?.room?.property;
+        const khqrUrl = property?.khqrImageUrl;
         const owner = property?.owner;
         let presignedKhqrUrl = null;
 
         if (khqrUrl?.trim()) {
-          const key = s3Service.extractKeyFromUrl(khqrUrl);
-          presignedKhqrUrl = await s3Service.getPresignedUrl(key);
+          try {
+            const key = s3Service.extractKeyFromUrl(khqrUrl);
+            presignedKhqrUrl = await s3Service.getPresignedUrl(key);
+          } catch (s3Error) {
+            console.error("S3_PRESIGN_ERROR for invoice ID:", invoice.id, s3Error);
+            // Fallback gracefully without crashing the request if a single image fails
+          }
         }
+
         return {
           ...invoice,
           lease: {
@@ -202,20 +269,23 @@ export async function GET() {
             room: {
               ...invoice.lease?.room,
               property: {
-                ...invoice.lease?.room?.property,
+                ...property,
                 khqrImageUrl: presignedKhqrUrl,
                 name: owner?.name || 'N/A',
-                email: owner.email || 'N/A',
+                email: owner?.email || 'N/A',
               },
             },
           },
         };
       })
     );
-   
+
     return NextResponse.json(formattedData);
   } catch (error) {
     console.error('BACKEND_INVOICE_CRASH:', error);
-    return NextResponse.json({ error: 'Failed to load invoices records matrix' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to load invoices records matrix' }, 
+      { status: 500 }
+    );
   }
 }

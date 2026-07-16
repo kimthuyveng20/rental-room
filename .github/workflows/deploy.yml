@@ -75,7 +75,7 @@ jobs:
             echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
             echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
             echo "DOCKER_HUB_USERNAME=${{ secrets.DOCKER_HUB_USERNAME }}" >> .env
-
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
             # 2. Pull the newest images
             sudo docker compose pull
 

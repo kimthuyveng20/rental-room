@@ -1,25 +1,62 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/src/lib/db';
 import { payments, leases, rooms, properties, tenants } from '@/src/lib/db/schema';
 import { eq, and, exists, desc } from 'drizzle-orm';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/src/lib/auth";
+import jwt, { JwtPayload } from "jsonwebtoken";
 
-// --- GET: FETCH SECURITY-ISOLATED PAYMENT TRANSACTIONS LEDGER ---
-export async function GET() {
+interface CustomJwtPayload extends JwtPayload {
+  id: number;
+  role: string;
+}
+
+export async function GET(req: NextRequest) {
   try {
+    let currentUserId: number;
+    let userRole: string;
+
+    // ==========================================
+    // 1. Try NextAuth Session (Web clients)
+    // ==========================================
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      userRole = session.user.role;
+    } else {
+      // ==========================================
+      // 2. Try JWT Token (Flutter mobile client)
+      // ==========================================
+      const authHeader = req.headers.get("authorization");
+
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { error: "Unauthorized: Missing or invalid authorization scheme" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      // Verify JWT using your env JWT_SECRET
+      const payload = jwt.verify(
+        token,
+        process.env.JWT_SECRET!
+      ) as CustomJwtPayload;
+
+      // Force-cast payload.id to number to guarantee Drizzle operations don't crash
+      currentUserId = Number(payload.id);
+      userRole = payload.role;
     }
 
-    const currentUserId = Number(session.user.id);
-    const userRole = session.user.role;
     const db = getDb();
 
     let data: any[] = [];
 
-    // Apply isolation boundaries at query level depending on access tier
+    // ==========================================
+    // Admin Execution Branch
+    // ==========================================
     if (userRole === 'admin') {
       data = await db.query.payments.findMany({
         orderBy: [desc(payments.createdAt)],
@@ -32,8 +69,11 @@ export async function GET() {
           },
         },
       });
-
-    } else if (userRole === 'owner') {
+    } 
+    // ==========================================
+    // Owner Execution Branch
+    // ==========================================
+    else if (userRole === 'owner') {
       // 🔒 Owner Isolation: Only fetch payment records belonging to rooms inside their property assets
       data = await db.query.payments.findMany({
         where: (payment, { exists }) => exists(
@@ -58,8 +98,11 @@ export async function GET() {
           },
         },
       });
-
-    } else if (userRole === 'tenant') {
+    } 
+    // ==========================================
+    // Tenant Execution Branch
+    // ==========================================
+    else if (userRole === 'tenant') {
       // 🔒 Tenant Isolation: A tenant can only see payment histories linked directly to their personal profile
       data = await db.query.payments.findMany({
         where: (payment, { exists }) => exists(
@@ -87,6 +130,9 @@ export async function GET() {
     return NextResponse.json(data || []);
   } catch (error) {
     console.error("BACKEND_PAYMENT_FETCH_CRASH:", error);
-    return NextResponse.json({ error: "Failed to read database records asset loops" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to read database records asset loops" }, 
+      { status: 500 }
+    );
   }
 }

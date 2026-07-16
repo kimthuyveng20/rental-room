@@ -1,9 +1,11 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/src/lib/db';
 import { users, tenants, documents, leases, rooms, properties, invoices } from '@/src/lib/db/schema';
 import { eq, and, exists, or, inArray } from 'drizzle-orm';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/src/lib/auth";
+import { JwtPayload } from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 
 // Strict frontend UI contract interface matching your requirements
 interface DBTenant {
@@ -23,25 +25,65 @@ interface DBTenant {
   }>;
 }
 
-// --- GET: FETCH SECURITY-ISOLATED TENANTS BY OWNER ID ---
-export async function GET() {
+interface CustomJwtPayload extends JwtPayload {
+  id: number;
+  role: string;
+}
+
+export async function GET(req: NextRequest) {
   try {
+    let currentUserId: number;
+    let userRole: string;
+
+    // ==========================================
+    // 1. Try NextAuth Session (Web clients)
+    // ==========================================
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      userRole = session.user.role;
+    } else {
+      // ==========================================
+      // 2. Try JWT Token (Flutter mobile client)
+      // ==========================================
+      const authHeader = req.headers.get("authorization");
+
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { error: "Unauthorized: Missing or invalid authorization scheme" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      // Verify JWT using your env JWT_SECRET
+      const payload = jwt.verify(
+        token,
+        process.env.JWT_SECRET!
+      ) as CustomJwtPayload;
+
+      // Force-cast payload.id to number to guarantee Drizzle operations don't crash
+      currentUserId = Number(payload.id);
+      userRole = payload.role;
     }
 
-    const currentUserId = Number(session.user.id);
-    const userRole = session.user.role;
     const db = getDb();
 
     // Enforce role barrier: Only owners or admins can perform broad tenant management listings
     if (userRole !== 'owner' && userRole !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden: Access denied' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Forbidden: Access denied' }, 
+        { status: 403 }
+      );
     }
 
     let rawTenants: any[] = [];
 
+    // ==========================================
+    // Admin Execution Branch
+    // ==========================================
     if (userRole === 'admin') {
       rawTenants = await db.query.tenants.findMany({
         with: {
@@ -50,7 +92,11 @@ export async function GET() {
           leases: { with: { room: { columns: { roomNumber: true } } } }
         },
       });
-    } else if (userRole === 'owner') {
+    } 
+    // ==========================================
+    // Owner Execution Branch
+    // ==========================================
+    else if (userRole === 'owner') {
       // 🔒 Exclusive Owner Isolation: Only fetch tenants registered by or leasing from this owner
       rawTenants = await db.query.tenants.findMany({
         where: (tenant) => or(
@@ -80,7 +126,7 @@ export async function GET() {
     }
 
     // Transform database rows to match frontend structure type contracts perfectly
-    const formattedTenants: DBTenant[] = rawTenants.map((t) => ({
+    const formattedTenants = rawTenants.map((t) => ({
       id: t.id,
       phone: t.phone,
       emergencyContact: t.emergencyContact || null,
@@ -92,7 +138,7 @@ export async function GET() {
       },
       leases: (t.leases || []).map((l: any) => ({
         status: l.status,
-        room: { roomNumber: l.room.roomNumber },
+        room: { roomNumber: l.room?.roomNumber ?? 'N/A' },
       })),
       documents: t.documents ? t.documents.map((d: any) => ({
         documentType: d.documentType,
@@ -103,7 +149,10 @@ export async function GET() {
     return NextResponse.json(formattedTenants);
   } catch (error) {
     console.error('FETCH_TENANTS_ERROR:', error);
-    return NextResponse.json({ error: 'Failed to fetch relational tenants' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch relational tenants' }, 
+      { status: 500 }
+    );
   }
 }
 

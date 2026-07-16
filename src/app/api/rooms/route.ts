@@ -1,29 +1,66 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/src/lib/db';
 import { rooms, properties, leases, tenants} from '@/src/lib/db/schema';
 import { eq, and, exists, type InferSelectModel } from 'drizzle-orm';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/src/lib/auth";
+import { JwtPayload } from 'jsonwebtoken';
+import jwt from "jsonwebtoken";
 
 // Extract base model shapes to explicitly type tracking arrays and eliminate implicit 'any[]' compile faults
 type PropertySummary = { id: number; name: string };
 
-// --- GET: FETCH SECURITY-ISOLATED RENTAL INVENTORY ---
-export async function GET() {
+interface CustomJwtPayload extends JwtPayload {
+  id: number;
+  role: string;
+}
+export async function GET(req: NextRequest) {
   try {
+    let currentUserId: number;
+    let userRole: string;
+
+    // ==========================================
+    // 1. Try NextAuth Session (Web clients)
+    // ==========================================
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      userRole = session.user.role;
+    } else {
+      // ==========================================
+      // 2. Try JWT Token (Flutter mobile client)
+      // ==========================================
+      const authHeader = req.headers.get("authorization");
+      console.log("auth:", authHeader);
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { error: "Unauthorized: Missing or invalid authorization scheme" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      // Verify JWT using your env JWT_SECRET
+      const payload = jwt.verify(
+        token,
+        process.env.JWT_SECRET!
+      ) as CustomJwtPayload;
+
+      // Force-cast payload.id to number to guarantee Drizzle operations don't crash
+      currentUserId = Number(payload.id);
+      userRole = payload.role;
     }
 
-    const currentUserId = Number(session.user.id);
-    const userRole = session.user.role;
     const db = getDb();
 
     let roomsList: any[] = [];
-    let propertiesList: PropertySummary[] = [];
+    let propertiesList: any[] = [];
 
-    // Apply isolation boundaries across structural execution logic
+    // ==========================================
+    // Admin Execution Branch
+    // ==========================================
     if (userRole === 'admin') {
       roomsList = await db.query.rooms.findMany({
         with: {
@@ -39,8 +76,11 @@ export async function GET() {
       propertiesList = await db.query.properties.findMany({
         columns: { id: true, name: true },
       });
-
-    } else if (userRole === 'owner') {
+    } 
+    // ==========================================
+    // Owner Execution Branch
+    // ==========================================
+    else if (userRole === 'owner') {
       // 🔒 Owner Isolation: Only fetch room listings built inside properties they own
       roomsList = await db.query.rooms.findMany({
         where: (room, { exists }) => exists(
@@ -68,8 +108,11 @@ export async function GET() {
         where: (property, { eq }) => eq(property.ownerId, currentUserId),
         columns: { id: true, name: true },
       });
-
-    } else if (userRole === 'tenant') {
+    } 
+    // ==========================================
+    // Tenant Execution Branch
+    // ==========================================
+    else if (userRole === 'tenant') {
       // 🔒 Tenant Isolation: Only allow a tenant to see details of the room they are currently leasing
       roomsList = await db.query.rooms.findMany({
         where: (room, { exists }) => exists(
@@ -100,7 +143,10 @@ export async function GET() {
     return NextResponse.json({ rooms: roomsList, properties: propertiesList });
   } catch (error) {
     console.error('FETCH_ROOMS_SCHEMA_ERROR:', error);
-    return NextResponse.json({ error: 'Failed to synchronize rental inventory records' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to synchronize rental inventory records' }, 
+      { status: 500 }
+    );
   }
 }
 
