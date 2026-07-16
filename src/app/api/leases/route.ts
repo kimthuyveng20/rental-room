@@ -167,33 +167,78 @@ export async function GET(req: NextRequest) {
   }
 }
 
+
 // --- POST: AUTHENTICATE AND AUTHORIZE NEW LEASES ---
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    let currentUserId: number;
+    let currentUserRole: string | undefined;
+
+    // 1. Attempt NextAuth Session (Cookie-based / Web clients)
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      currentUserRole = session.user.role;
+    } else {
+      // 2. Fallback to Authorization Header (JWT-based / Mobile clients)
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Missing or invalid token format" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      try {
+        const payload = jwt.verify(
+          token,
+          process.env.JWT_SECRET!
+        ) as JwtPayload;
+
+        if (!payload || !payload.id) {
+          return NextResponse.json(
+            { success: false, message: "Unauthorized: Invalid token payload" },
+            { status: 401 }
+          );
+        }
+
+        currentUserId = Number(payload.id);
+        currentUserRole = payload.role; // Extract role from your manual JWT payload
+      } catch (jwtError) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Token verification failed or expired" },
+          { status: 401 }
+        );
+      }
     }
 
     // Tenant role guard block
-    if (session.user.role === 'tenant') {
-      return NextResponse.json({ error: 'Forbidden: Tenants cannot author leases' }, { status: 403 });
+    if (currentUserRole === 'tenant') {
+      return NextResponse.json(
+        { error: 'Forbidden: Tenants cannot author leases' }, 
+        { status: 403 }
+      );
     }
 
-    const currentUserId = Number(session.user.id);
     const db = getDb();
     const body = await req.json();
     const { roomId, tenantId, startDate, endDate, rentAmount, depositAmount } = body;
 
     // 🔒 Owner Guard: Check room binding rights prior to processing state transformations
-    if (session.user.role === 'owner') {
+    if (currentUserRole === 'owner') {
       const targetRoomProperty = await db.query.rooms.findFirst({
         where: (rooms, { eq }) => eq(rooms.id, Number(roomId)),
         with: { property: true }
       });
 
       if (!targetRoomProperty || targetRoomProperty.property.ownerId !== currentUserId) {
-        return NextResponse.json({ error: 'Forbidden: You do not own this property asset room.' }, { status: 403 });
+        return NextResponse.json(
+          { error: 'Forbidden: You do not own this property asset room.' }, 
+          { status: 403 }
+        );
       }
     }
 
@@ -231,30 +276,68 @@ export async function POST(req: Request) {
 }
 
 
-export async function DELETE(req: Request) {
+// --- DELETE: SECURE CASCADING ASSET PURGES (LEASES) ---
+export async function DELETE(req: NextRequest) {
   try {
+    let currentUserId: number;
+    let currentUserRole: string | undefined;
+
+    // 1. Attempt NextAuth Session (Cookie-based / Web clients)
     const session = await getServerSession(authOptions);
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      currentUserRole = session.user.role;
+    } else {
+      // 2. Fallback to Authorization Header (JWT-based / Mobile clients)
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Missing or invalid token format" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      try {
+        const payload = jwt.verify(
+          token,
+          process.env.JWT_SECRET!
+        ) as JwtPayload;
+
+        if (!payload || !payload.id) {
+          return NextResponse.json(
+            { success: false, message: "Unauthorized: Invalid token payload" },
+            { status: 401 }
+          );
+        }
+
+        currentUserId = Number(payload.id);
+        currentUserRole = payload.role; // Extract role from your manual JWT payload
+      } catch (jwtError) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Token verification failed or expired" },
+          { status: 401 }
+        );
+      }
     }
 
-    if (session.user.role === 'tenant') {
+    // Role Enforcement Check
+    if (currentUserRole === 'tenant') {
       return NextResponse.json(
-        { error: 'Forbidden: Tenants cannot void agreements' },
+        { error: 'Forbidden: Tenants cannot void agreements' }, 
         { status: 403 }
       );
     }
 
-    const currentUserId = Number(session.user.id);
     const db = getDb();
-
     const { searchParams } = new URL(req.url);
     const leaseIdStr = searchParams.get('id');
 
     if (!leaseIdStr) {
       return NextResponse.json(
-        { error: 'Missing lease identifier param' },
+        { error: 'Missing lease identifier param' }, 
         { status: 400 }
       );
     }
@@ -275,40 +358,38 @@ export async function DELETE(req: Request) {
 
     if (!targetLease) {
       return NextResponse.json(
-        { error: 'Lease agreement record not found' },
+        { error: 'Lease agreement record not found' }, 
         { status: 404 }
       );
     }
 
-    // Owner permission check
-    if (
-      session.user.role === 'owner' &&
-      targetLease.room.property.ownerId !== currentUserId
-    ) {
+    // 🔒 Owner Guard: Block deletion if they don't own the property tied to this lease
+    if (currentUserRole === 'owner' && targetLease.room.property.ownerId !== currentUserId) {
       return NextResponse.json(
-        { error: 'Forbidden: You do not own the property tied to this lease.' },
+        { error: 'Forbidden: You do not own the property tied to this lease.' }, 
         { status: 403 }
       );
     }
 
+    // Execute atomic operations safely across boundaries using transactions
     await db.transaction(async (tx) => {
-  // 1. release room first
-  if (targetLease.roomId) {
-    await tx
-      .update(rooms)
-      .set({ status: 'available' })
-      .where(eq(rooms.id, targetLease.roomId));
-  }
+      // 1. Release room status back to available
+      if (targetLease.roomId) {
+        await tx
+          .update(rooms)
+          .set({ status: 'available' })
+          .where(eq(rooms.id, targetLease.roomId));
+      }
 
-  // 2. delete payments FIRST (new blocker)
-  await tx.delete(payments).where(eq(payments.leaseId, leaseId));
+      // 2. Delete dependent payments FIRST
+      await tx.delete(payments).where(eq(payments.leaseId, leaseId));
 
-  // 3. delete invoices SECOND
-  await tx.delete(invoices).where(eq(invoices.leaseId, leaseId));
+      // 3. Delete dependent invoices SECOND
+      await tx.delete(invoices).where(eq(invoices.leaseId, leaseId));
 
-  // 4. delete lease LAST
-  await tx.delete(leases).where(eq(leases.id, leaseId));
-});
+      // 4. Delete lease LAST
+      await tx.delete(leases).where(eq(leases.id, leaseId));
+    });
 
     return NextResponse.json({
       success: true,
@@ -316,9 +397,8 @@ export async function DELETE(req: Request) {
     });
   } catch (error) {
     console.error('DELETE_LEASE_ROUTE_ERROR:', error);
-
     return NextResponse.json(
-      { error: 'Failed to fully execute lease deletion sequence' },
+      { error: 'Failed to fully execute lease deletion sequence' }, 
       { status: 500 }
     );
   }

@@ -150,34 +150,81 @@ export async function GET(req: NextRequest) {
   }
 }
 
+
 // --- POST: INJECT ROOM SAFELY ENFORCING PROPERTY WRITING RIGHTS ---
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    let currentUserId: number;
+    let currentUserRole: string | undefined;
+
+    // 1. Attempt NextAuth Session (Cookie-based / Web clients)
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      currentUserRole = session.user.role;
+    } else {
+      // 2. Fallback to Authorization Header (JWT-based / Mobile clients)
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Missing or invalid token format" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      try {
+        const payload = jwt.verify(
+          token,
+          process.env.JWT_SECRET!
+        ) as JwtPayload;
+
+        if (!payload || !payload.id) {
+          return NextResponse.json(
+            { success: false, message: "Unauthorized: Invalid token payload" },
+            { status: 401 }
+          );
+        }
+
+        currentUserId = Number(payload.id);
+        currentUserRole = payload.role; // Extract role from manual JWT payload
+      } catch (jwtError) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Token verification failed or expired" },
+          { status: 401 }
+        );
+      }
     }
 
-    if (session.user.role === 'tenant') {
-      return NextResponse.json({ error: 'Forbidden: Tenants cannot allocate units' }, { status: 403 });
+    // Role Enforcement Guard
+    if (currentUserRole === 'tenant') {
+      return NextResponse.json(
+        { error: 'Forbidden: Tenants cannot allocate units' }, 
+        { status: 403 }
+      );
     }
 
-    const currentUserId = Number(session.user.id);
     const db = getDb();
     const body = await req.json();
     const { propertyId, roomNumber, type, capacity, pricePerMonth, status, amenities } = body;
 
     // 🔒 Owner Guard: Ensure property belongs to them before injecting a room into it
-    if (session.user.role === 'owner') {
+    if (currentUserRole === 'owner') {
       const targetProperty = await db.query.properties.findFirst({
         where: (properties, { eq }) => eq(properties.id, parseInt(propertyId, 10)),
       });
 
       if (!targetProperty || targetProperty.ownerId !== currentUserId) {
-        return NextResponse.json({ error: 'Forbidden: Asset ownership verification failed.' }, { status: 403 });
+        return NextResponse.json(
+          { error: 'Forbidden: Asset ownership verification failed.' }, 
+          { status: 403 }
+        );
       }
     }
 
+    // Insert room safely into database
     const [insertedRoom] = await db.insert(rooms).values({
       propertyId: parseInt(propertyId, 10),
       roomNumber: roomNumber.trim(),
@@ -191,68 +238,10 @@ export async function POST(req: Request) {
     return NextResponse.json(insertedRoom, { status: 201 });
   } catch (error) {
     console.error('CREATE_ROOM_SCHEMA_ERROR:', error);
-    return NextResponse.json({ error: 'Failed to register the unit. Check database enum configurations.' }, { status: 500 });
-  }
-}
-
-// --- DELETE: REMOVE ROOM ENSURING MANAGEMENT OWNERSHIP ---
-export async function DELETE(req: Request) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    if (session.user.role === 'tenant') {
-      return NextResponse.json({ error: 'Forbidden: Tenants cannot drop units' }, { status: 403 });
-    }
-
-    const currentUserId = Number(session.user.id);
-    const db = getDb();
-    const { searchParams } = new URL(req.url);
-    const idParam = searchParams.get('id');
-
-    if (!idParam) {
-      return NextResponse.json({ error: 'Bad Request: Missing unique room identifier parameter.' }, { status: 400 });
-    }
-
-    const roomId = parseInt(idParam, 10);
-    if (isNaN(roomId)) {
-      return NextResponse.json({ error: 'Bad Request: Invalid roomId parameter formatting.' }, { status: 400 });
-    }
-
-    // Trace parental scope records to look up underlying property properties
-    const targetRoom = await db.query.rooms.findFirst({
-      where: (rooms, { eq }) => eq(rooms.id, roomId),
-      with: { property: true }
-    });
-
-    if (!targetRoom) {
-      return NextResponse.json({ error: 'Target room not found or already deleted from database storage.' }, { status: 404 });
-    }
-
-    // 🔒 Owner Guard: Check room parent property handling rights
-    if (session.user.role === 'owner' && targetRoom.property.ownerId !== currentUserId) {
-      return NextResponse.json({ error: 'Forbidden: Unauthorized management request boundary.' }, { status: 403 });
-    }
-
-    const [deletedRoom] = await db
-      .delete(rooms)
-      .where(eq(rooms.id, roomId))
-      .returning();
-
-    return NextResponse.json({ success: true, discardedUnit: deletedRoom });
-  } catch (error: any) {
-    console.error('DELETE_ROOM_SCHEMA_ERROR:', error);
-
-    if (error.message?.toLowerCase().includes('foreign key constraint') || error.code === '23503') {
-      return NextResponse.json(
-        { error: 'Cannot remove this room configuration because it has active data entries or leases bound to it.' },
-        { status: 409 }
-      );
-    }
-
-    return NextResponse.json({ error: 'Failed to discard resource from database storage.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to register the unit. Check database enum configurations.' }, 
+      { status: 500 }
+    );
   }
 }
 
@@ -272,5 +261,125 @@ export async function PATCH(req: Request) {
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: 'Failed to update status' }, { status: 500 });
+  }
+}
+
+
+// --- DELETE: REMOVE ROOM ENSURING MANAGEMENT OWNERSHIP ---
+export async function DELETE(req: NextRequest) {
+  try {
+    let currentUserId: number;
+    let currentUserRole: string | undefined;
+
+    // 1. Attempt NextAuth Session (Cookie-based / Web clients)
+    const session = await getServerSession(authOptions);
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      currentUserRole = session.user.role;
+    } else {
+      // 2. Fallback to Authorization Header (JWT-based / Mobile clients)
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Missing or invalid token format" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      try {
+        const payload = jwt.verify(
+          token,
+          process.env.JWT_SECRET!
+        ) as JwtPayload;
+
+        if (!payload || !payload.id) {
+          return NextResponse.json(
+            { success: false, message: "Unauthorized: Invalid token payload" },
+            { status: 401 }
+          );
+        }
+
+        currentUserId = Number(payload.id);
+        currentUserRole = payload.role; // Extract role from manual JWT payload
+      } catch (jwtError) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Token verification failed or expired" },
+          { status: 401 }
+        );
+      }
+    }
+
+    // Role Enforcement Guard
+    if (currentUserRole === 'tenant') {
+      return NextResponse.json(
+        { error: 'Forbidden: Tenants cannot drop units' }, 
+        { status: 403 }
+      );
+    }
+
+    const db = getDb();
+    const { searchParams } = new URL(req.url);
+    const idParam = searchParams.get('id');
+
+    if (!idParam) {
+      return NextResponse.json(
+        { error: 'Bad Request: Missing unique room identifier parameter.' }, 
+        { status: 400 }
+      );
+    }
+
+    const roomId = parseInt(idParam, 10);
+    if (isNaN(roomId)) {
+      return NextResponse.json(
+        { error: 'Bad Request: Invalid roomId parameter formatting.' }, 
+        { status: 400 }
+      );
+    }
+
+    // Trace parental scope records to look up underlying property properties
+    const targetRoom = await db.query.rooms.findFirst({
+      where: (rooms, { eq }) => eq(rooms.id, roomId),
+      with: { property: true }
+    });
+
+    if (!targetRoom) {
+      return NextResponse.json(
+        { error: 'Target room not found or already deleted from database storage.' }, 
+        { status: 404 }
+      );
+    }
+
+    // 🔒 Owner Guard: Check room parent property handling rights
+    if (currentUserRole === 'owner' && targetRoom.property.ownerId !== currentUserId) {
+      return NextResponse.json(
+        { error: 'Forbidden: Unauthorized management request boundary.' }, 
+        { status: 403 }
+      );
+    }
+
+    // Execute room deletion
+    const [deletedRoom] = await db
+      .delete(rooms)
+      .where(eq(rooms.id, roomId))
+      .returning();
+
+    return NextResponse.json({ success: true, discardedUnit: deletedRoom });
+  } catch (error: any) {
+    console.error('DELETE_ROOM_SCHEMA_ERROR:', error);
+
+    if (error.message?.toLowerCase().includes('foreign key constraint') || error.code === '23503') {
+      return NextResponse.json(
+        { error: 'Cannot remove this room configuration because it has active data entries or leases bound to it.' },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Failed to discard resource from database storage.' }, 
+      { status: 500 }
+    );
   }
 }

@@ -191,26 +191,70 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// --- POST: CREATE PROPERTY BOUND TO LOGGED-IN SESSION ---
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    let currentUserId: number;
+    let currentUserRole: string | undefined;
+
+    // 1. Attempt NextAuth Session (Cookie-based / Web clients)
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      currentUserRole = session.user.role; // Make sure your session schema exposes role
+    } else {
+      // 2. Fallback to Authorization Header (JWT-based / Mobile clients)
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Missing or invalid token format" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      try {
+        const payload = jwt.verify(
+          token,
+          process.env.JWT_SECRET!
+        ) as JwtPayload;
+
+        if (!payload || !payload.id) {
+          return NextResponse.json(
+            { success: false, message: "Unauthorized: Invalid token payload" },
+            { status: 401 }
+          );
+        }
+
+        currentUserId = Number(payload.id);
+        currentUserRole = payload.role; // Extract role from your manual JWT payload
+      } catch (jwtError) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Token verification failed or expired" },
+          { status: 401 }
+        );
+      }
     }
 
-    if (session.user.role === 'tenant') {
-      return NextResponse.json({ error: 'Forbidden: Tenants cannot author assets' }, { status: 403 });
+    // Tenant check block
+    if (currentUserRole === 'tenant') {
+      return NextResponse.json(
+        { success: false, message: 'Forbidden: Tenants cannot author assets' }, 
+        { status: 403 }
+      );
     }
 
-    const currentUserId = Number(session.user.id);
     const db = getDb();
     const body = await req.json();
     const { name, address, city, state, zipCode, description, khqrImageUrl } = body;
 
     // Enforce authorization rules: Only Admins can explicitly bypass assigning property ownership
-    const targetOwnerId = session.user.role === 'admin' ? (body.ownerId ? Number(body.ownerId) : currentUserId) : currentUserId;
+    const targetOwnerId = currentUserRole === 'admin' 
+      ? (body.ownerId ? Number(body.ownerId) : currentUserId) 
+      : currentUserId;
 
+    // Insert into database
     const [newProperty] = await db.insert(properties).values({
       ownerId: targetOwnerId,
       name: name.trim(),
@@ -231,20 +275,60 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to create property records' }, { status: 500 });
   }
 }
-
-// --- PUT: MODIFY RELEVANT PROPERTY RECORDS USING OWNERSHIP VERIFICATION ---
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
   try {
+    let currentUserId: number;
+    let currentUserRole: string | undefined;
+
+    // 1. Attempt NextAuth Session (Cookie-based / Web clients)
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      currentUserRole = session.user.role;
+    } else {
+      // 2. Fallback to Authorization Header (JWT-based / Mobile clients)
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Missing or invalid token format" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      try {
+        const payload = jwt.verify(
+          token,
+          process.env.JWT_SECRET!
+        ) as JwtPayload;
+
+        if (!payload || !payload.id) {
+          return NextResponse.json(
+            { success: false, message: "Unauthorized: Invalid token payload" },
+            { status: 401 }
+          );
+        }
+
+        currentUserId = Number(payload.id);
+        currentUserRole = payload.role; // Extract role from your manual JWT payload
+      } catch (jwtError) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Token verification failed or expired" },
+          { status: 401 }
+        );
+      }
     }
 
-    if (session.user.role === 'tenant') {
-      return NextResponse.json({ error: 'Forbidden: Tenants cannot update properties' }, { status: 403 });
+    // Role Enforcement Check
+    if (currentUserRole === 'tenant') {
+      return NextResponse.json(
+        { success: false, message: 'Forbidden: Tenants cannot update properties' }, 
+        { status: 403 }
+      );
     }
 
-    const currentUserId = Number(session.user.id);
     const db = getDb();
     const { searchParams } = new URL(req.url);
     const propertyIdStr = searchParams.get('id');
@@ -266,10 +350,12 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: 'Property record not found' }, { status: 404 });
     }
 
-    if (session.user.role === 'owner' && existingProperty.ownerId !== currentUserId) {
+    // Enforce ownership check: owners can only update their own properties
+    if (currentUserRole === 'owner' && existingProperty.ownerId !== currentUserId) {
       return NextResponse.json({ error: 'Forbidden: Unauthorized adjustment attempt' }, { status: 403 });
     }
 
+    // Perform database update
     const [updatedProperty] = await db
       .update(properties)
       .set({
@@ -292,18 +378,60 @@ export async function PUT(req: Request) {
 }
 
 // --- DELETE: SECURE CASCADING ASSET PURGES ---
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
   try {
+    let currentUserId: number;
+    let currentUserRole: string | undefined;
+
+    // 1. Attempt NextAuth Session (Cookie-based / Web clients)
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      currentUserRole = session.user.role;
+    } else {
+      // 2. Fallback to Authorization Header (JWT-based / Mobile clients)
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Missing or invalid token format" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      try {
+        const payload = jwt.verify(
+          token,
+          process.env.JWT_SECRET!
+        ) as JwtPayload;
+
+        if (!payload || !payload.id) {
+          return NextResponse.json(
+            { success: false, message: "Unauthorized: Invalid token payload" },
+            { status: 401 }
+          );
+        }
+
+        currentUserId = Number(payload.id);
+        currentUserRole = payload.role; // Extract role from your manual JWT payload
+      } catch (jwtError) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Token verification failed or expired" },
+          { status: 401 }
+        );
+      }
     }
 
-    if (session.user.role === 'tenant') {
-      return NextResponse.json({ error: 'Forbidden: Tenants cannot drop assets' }, { status: 403 });
+    // Role Enforcement Check
+    if (currentUserRole === 'tenant') {
+      return NextResponse.json(
+        { success: false, message: 'Forbidden: Tenants cannot drop assets' }, 
+        { status: 403 }
+      );
     }
 
-    const currentUserId = Number(session.user.id);
     const db = getDb();
     const { searchParams } = new URL(req.url);
     const propertyIdStr = searchParams.get('id');
@@ -323,7 +451,7 @@ export async function DELETE(req: Request) {
     }
 
     // 🔒 Security Check: Block unauthorized deletion attempts across accounts
-    if (session.user.role === 'owner' && targetProperty.ownerId !== currentUserId) {
+    if (currentUserRole === 'owner' && targetProperty.ownerId !== currentUserId) {
       return NextResponse.json({ error: 'Forbidden: Unauthorized asset deletion attempt' }, { status: 403 });
     }
 

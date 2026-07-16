@@ -157,18 +157,60 @@ export async function GET(req: NextRequest) {
 }
 
 // --- POST: CREATE TENANT LOGS EXCLUSIVELY BY SIGNED-IN OWNER ID ---
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    let currentUserId: number;
+    let currentUserRole: string | undefined;
+
+    // 1. Attempt NextAuth Session (Cookie-based / Web clients)
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      currentUserRole = session.user.role;
+    } else {
+      // 2. Fallback to Authorization Header (JWT-based / Mobile clients)
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Missing or invalid token format" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      try {
+        const payload = jwt.verify(
+          token,
+          process.env.JWT_SECRET!
+        ) as JwtPayload;
+
+        if (!payload || !payload.id) {
+          return NextResponse.json(
+            { success: false, message: "Unauthorized: Invalid token payload" },
+            { status: 401 }
+          );
+        }
+
+        currentUserId = Number(payload.id);
+        currentUserRole = payload.role; // Extract role from manual JWT payload
+      } catch (jwtError) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Token verification failed or expired" },
+          { status: 401 }
+        );
+      }
     }
 
-    if (session.user.role !== 'owner' && session.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden: Account authorization rejected' }, { status: 403 });
+    // Role Enforcement Guard (Only owners and admins can create tenants)
+    if (currentUserRole !== 'owner' && currentUserRole !== 'admin') {
+      return NextResponse.json(
+        { error: 'Forbidden: Account authorization rejected' }, 
+        { status: 403 }
+      );
     }
 
-    const currentUserId = Number(session.user.id);
     const db = getDb();
     const body = await req.json();
     const { name, email, phone, emergencyContact, employmentVerification, imageUrl, idDocumentUrl } = body;
@@ -200,7 +242,7 @@ export async function POST(req: Request) {
         emergencyContact: emergencyContact?.trim() || null,
         employmentVerification: Boolean(employmentVerification),
         imageUrl: imageUrl || null,
-        createdByOwnerId: currentUserId, // 🔒 Bound exclusively to creating owner ID
+        createdByOwnerId: currentUserId, // 🔒 Bound exclusively to creating owner/admin ID
       }).returning();
 
       if (idDocumentUrl) {
@@ -230,15 +272,54 @@ export async function POST(req: Request) {
   }
 }
 
+
 // --- PUT: MODIFY PROFILE WITH OWNER MANAGEMENT AUTHENTICATION ---
-export async function PUT(req: Request) {
+export async function PUT(req: NextRequest) {
   try {
+    let currentUserId: number;
+    let currentUserRole: string | undefined;
+
+    // 1. Attempt NextAuth Session (Cookie-based / Web clients)
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      currentUserRole = session.user.role;
+    } else {
+      // 2. Fallback to Authorization Header (JWT-based / Mobile clients)
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Missing or invalid token format" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      try {
+        const payload = jwt.verify(
+          token,
+          process.env.JWT_SECRET!
+        ) as JwtPayload;
+
+        if (!payload || !payload.id) {
+          return NextResponse.json(
+            { success: false, message: "Unauthorized: Invalid token payload" },
+            { status: 401 }
+          );
+        }
+
+        currentUserId = Number(payload.id);
+        currentUserRole = payload.role; // Extract role from manual JWT payload
+      } catch (jwtError) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Token verification failed or expired" },
+          { status: 401 }
+        );
+      }
     }
 
-    const currentUserId = Number(session.user.id);
     const db = getDb();
     const body = await req.json();
     const { id, name, email, phone, emergencyContact, employmentVerification, imageUrl, idDocumentUrl } = body;
@@ -257,7 +338,7 @@ export async function PUT(req: Request) {
     }
 
     // 🔒 Owner Guard: Block edit if owner doesn't manage or own this specific tenant profile
-    if (session.user.role === 'owner') {
+    if (currentUserRole === 'owner') {
       const isCreator = existingTenant.createdByOwnerId === currentUserId;
       const hasLeaseRelationship = await db.query.leases.findFirst({
         where: (lease, { exists }) => exists(
@@ -279,6 +360,7 @@ export async function PUT(req: Request) {
       }
     }
 
+    // Process transactions
     await db.transaction(async (tx) => {
       await tx.update(users)
         .set({ name: name.trim(), email: email.toLowerCase().trim(), updatedAt: new Date() })
@@ -314,15 +396,54 @@ export async function PUT(req: Request) {
   }
 }
 
+
 // --- DELETE: SECURE ISOLATED PURGE FOR MANAGEMENT NETWORKS ---
-export async function DELETE(req: Request) {
+export async function DELETE(req: NextRequest) {
   try {
+    let currentUserId: number;
+    let currentUserRole: string | undefined;
+
+    // 1. Attempt NextAuth Session (Cookie-based / Web clients)
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      currentUserRole = session.user.role;
+    } else {
+      // 2. Fallback to Authorization Header (JWT-based / Mobile clients)
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Missing or invalid token format" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      try {
+        const payload = jwt.verify(
+          token,
+          process.env.JWT_SECRET!
+        ) as JwtPayload;
+
+        if (!payload || !payload.id) {
+          return NextResponse.json(
+            { success: false, message: "Unauthorized: Invalid token payload" },
+            { status: 401 }
+          );
+        }
+
+        currentUserId = Number(payload.id);
+        currentUserRole = payload.role; // Extract role from manual JWT payload
+      } catch (jwtError) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Token verification failed or expired" },
+          { status: 401 }
+        );
+      }
     }
 
-    const currentUserId = Number(session.user.id);
     const db = getDb();
     const { searchParams } = new URL(req.url);
     const tenantIdStr = searchParams.get('id');
@@ -341,7 +462,7 @@ export async function DELETE(req: Request) {
     }
 
     // 🔒 Owner Guard: Block deletion if owner doesn't own or manage this specific tenant profile record
-    if (session.user.role === 'owner') {
+    if (currentUserRole === 'owner') {
       const isCreator = targetTenant.createdByOwnerId === currentUserId;
       const hasLeaseRelationship = await db.query.leases.findFirst({
         where: (lease, { exists }) => exists(
@@ -363,32 +484,33 @@ export async function DELETE(req: Request) {
       }
     }
 
+    // Execute atomic cascading purges securely via database transaction
     await db.transaction(async (tx) => {
-  // 1. delete invoices linked to leases
-  await tx
-    .delete(invoices)
-    .where(
-      inArray(
-        invoices.leaseId,
-        tx
-          .select({ id: leases.id })
-          .from(leases)
-          .where(eq(leases.tenantId, tenantId))
-      )
-    );
+      // 1. Delete invoices linked to leases
+      await tx
+        .delete(invoices)
+        .where(
+          inArray(
+            invoices.leaseId,
+            tx
+              .select({ id: leases.id })
+              .from(leases)
+              .where(eq(leases.tenantId, tenantId))
+          )
+        );
 
-  // 2. delete documents
-  await tx.delete(documents).where(eq(documents.tenantId, tenantId));
+      // 2. Delete documents
+      await tx.delete(documents).where(eq(documents.tenantId, tenantId));
 
-  // 3. delete leases
-  await tx.delete(leases).where(eq(leases.tenantId, tenantId));
+      // 3. Delete leases
+      await tx.delete(leases).where(eq(leases.tenantId, tenantId));
 
-  // 4. delete tenant
-  await tx.delete(tenants).where(eq(tenants.id, tenantId));
+      // 4. Delete tenant profile
+      await tx.delete(tenants).where(eq(tenants.id, tenantId));
 
-  // 5. delete user
-  await tx.delete(users).where(eq(users.id, targetTenant.userId));
-});
+      // 5. Delete user authentication login credentials
+      await tx.delete(users).where(eq(users.id, targetTenant.userId));
+    });
 
     return NextResponse.json({ success: true, message: 'Tenant successfully removed' });
   } catch (error) {

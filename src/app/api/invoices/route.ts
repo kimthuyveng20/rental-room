@@ -6,95 +6,7 @@ import { S3Service } from '@/src/lib/services/s3.service';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/src/lib/auth";
 import jwt, { JwtPayload } from "jsonwebtoken";
-// --- POST: CREATE INVOICE ---
-export async function POST(req: Request) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
-    if (session.user.role === 'tenant') {
-      return NextResponse.json({ error: 'Forbidden: Tenants cannot create invoices' }, { status: 403 });
-    }
-    
-    const currentUserId = Number(session.user.id);
-    const db = getDb();
-    const body = await req.json();
-    const {
-      leaseId,
-      waterLastMonth,
-      waterThisMonth,
-      waterRate,
-      electricityLastMonth,
-      electricityThisMonth,
-      electricityRate,
-      billingPeriod,
-      dueDate,
-      startDate,
-      endDate,
-    } = body;
-
-    const activeLease = await db.query.leases.findFirst({
-      where: (leases, { eq }) => eq(leases.id, Number(leaseId)),
-      with: {
-        room: { with: { property: true } },
-        tenant: { with: { user: true } },
-      },
-    });
-
-    if (!activeLease) {
-      return NextResponse.json({ error: 'Selected active lease not found' }, { status: 404 });
-    }
-
-    // 🔒 Owner Check: Make sure the owner logging in actually owns the property this lease belongs to
-    if (session.user.role === 'owner' && activeLease.room.property.ownerId !== currentUserId) {
-      return NextResponse.json({ error: 'Forbidden: You do not own this property' }, { status: 403 });
-    }
-
-    // Calculations
-    const waterUsage = Math.max(0, Number(waterThisMonth) - Number(waterLastMonth));
-    const waterTotal = (waterUsage * Number(waterRate)).toFixed(2);
-
-    const electricityUsage = Math.max(0, Number(electricityThisMonth) - Number(electricityLastMonth));
-    const electricityTotal = (electricityUsage * Number(electricityRate)).toFixed(2);
-
-    const roomRent = activeLease.monthlyRent; 
-    const grandTotal = (
-      Number(roomRent) +
-      Number(waterTotal) +
-      Number(electricityTotal)
-    ).toFixed(2);
-
-    const [newInvoice] = await db.insert(invoices).values({
-      leaseId: activeLease.id,
-      roomNumber: activeLease.room.roomNumber,
-      tenantName: activeLease.tenant.user.name,
-      waterLastMonth: Number(waterLastMonth),
-      waterThisMonth: Number(waterThisMonth),
-      waterUsage,
-      waterRate: String(waterRate),
-      waterTotal,
-      electricityLastMonth: Number(electricityLastMonth),
-      electricityThisMonth: Number(electricityThisMonth),
-      electricityUsage,
-      electricityRate: String(electricityRate),
-      electricityTotal,
-      roomRent,
-      grandTotal,
-      status: 'pending',
-      billingPeriod,
-      dueDate: new Date(dueDate).toISOString().split('T')[0],
-      startDate: new Date(startDate).toISOString().split('T')[0],
-      endDate: new Date(endDate).toISOString().split('T')[0],
-    }).returning();
-
-    return NextResponse.json(newInvoice, { status: 201 });
-  } catch (error) {
-    console.error('CREATE_INVOICE_ERROR:', error);
-    return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 });
-  }
-}
 
 
 interface CustomJwtPayload extends JwtPayload {
@@ -287,5 +199,137 @@ export async function GET(req: NextRequest) {
       { error: 'Failed to load invoices records matrix' }, 
       { status: 500 }
     );
+  }
+}
+
+// --- POST: CREATE INVOICE ---
+export async function POST(req: NextRequest) {
+  try {
+    let currentUserId: number;
+    let currentUserRole: string | undefined;
+
+    // 1. Attempt NextAuth Session (Cookie-based / Web clients)
+    const session = await getServerSession(authOptions);
+
+    if (session?.user?.id) {
+      currentUserId = Number(session.user.id);
+      currentUserRole = session.user.role;
+    } else {
+      // 2. Fallback to Authorization Header (JWT-based / Mobile clients)
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Missing or invalid token format" },
+          { status: 401 }
+        );
+      }
+
+      const token = authHeader.substring(7);
+
+      try {
+        const payload = jwt.verify(
+          token,
+          process.env.JWT_SECRET!
+        ) as JwtPayload;
+
+        if (!payload || !payload.id) {
+          return NextResponse.json(
+            { success: false, message: "Unauthorized: Invalid token payload" },
+            { status: 401 }
+          );
+        }
+
+        currentUserId = Number(payload.id);
+        currentUserRole = payload.role; // Extract role from your manual JWT payload
+      } catch (jwtError) {
+        return NextResponse.json(
+          { success: false, message: "Unauthorized: Token verification failed or expired" },
+          { status: 401 }
+        );
+      }
+    }
+
+    // Role Enforcement Guard
+    if (currentUserRole === 'tenant') {
+      return NextResponse.json(
+        { error: 'Forbidden: Tenants cannot create invoices' }, 
+        { status: 403 }
+      );
+    }
+    
+    const db = getDb();
+    const body = await req.json();
+    const {
+      leaseId,
+      waterLastMonth,
+      waterThisMonth,
+      waterRate,
+      electricityLastMonth,
+      electricityThisMonth,
+      electricityRate,
+      billingPeriod,
+      dueDate,
+      startDate,
+      endDate,
+    } = body;
+
+    const activeLease = await db.query.leases.findFirst({
+      where: (leases, { eq }) => eq(leases.id, Number(leaseId)),
+      with: {
+        room: { with: { property: true } },
+        tenant: { with: { user: true } },
+      },
+    });
+
+    if (!activeLease) {
+      return NextResponse.json({ error: 'Selected active lease not found' }, { status: 404 });
+    }
+
+    // 🔒 Owner Check: Make sure the owner logging in actually owns the property this lease belongs to
+    if (currentUserRole === 'owner' && activeLease.room.property.ownerId !== currentUserId) {
+      return NextResponse.json({ error: 'Forbidden: You do not own this property' }, { status: 403 });
+    }
+
+    // Calculations
+    const waterUsage = Math.max(0, Number(waterThisMonth) - Number(waterLastMonth));
+    const waterTotal = (waterUsage * Number(waterRate)).toFixed(2);
+
+    const electricityUsage = Math.max(0, Number(electricityThisMonth) - Number(electricityLastMonth));
+    const electricityTotal = (electricityUsage * Number(electricityRate)).toFixed(2);
+
+    const roomRent = activeLease.monthlyRent; 
+    const grandTotal = (
+      Number(roomRent) +
+      Number(waterTotal) +
+      Number(electricityTotal)
+    ).toFixed(2);
+
+    const [newInvoice] = await db.insert(invoices).values({
+      leaseId: activeLease.id,
+      roomNumber: activeLease.room.roomNumber,
+      tenantName: activeLease.tenant.user.name,
+      waterLastMonth: Number(waterLastMonth),
+      waterThisMonth: Number(waterThisMonth),
+      waterUsage,
+      waterRate: String(waterRate),
+      waterTotal,
+      electricityLastMonth: Number(electricityLastMonth),
+      electricityThisMonth: Number(electricityThisMonth),
+      electricityUsage,
+      electricityRate: String(electricityRate),
+      electricityTotal,
+      roomRent,
+      grandTotal,
+      status: 'pending',
+      billingPeriod,
+      dueDate: new Date(dueDate).toISOString().split('T')[0],
+      startDate: new Date(startDate).toISOString().split('T')[0],
+      endDate: new Date(endDate).toISOString().split('T')[0],
+    }).returning();
+
+    return NextResponse.json(newInvoice, { status: 201 });
+  } catch (error) {
+    console.error('CREATE_INVOICE_ERROR:', error);
+    return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 });
   }
 }
